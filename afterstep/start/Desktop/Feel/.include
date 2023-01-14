@@ -1,0 +1,4 @@
+keepname
+include "/usr/local/share/afterstep/feels" ChangeFeel
+include "~/GNUstep/Library/AfterStep/feels" ChangeFeel
+extension feel.

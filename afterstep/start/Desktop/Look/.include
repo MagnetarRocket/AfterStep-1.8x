@@ -1,0 +1,4 @@
+keepname
+include "/usr/local/share/afterstep/looks" ChangeLook
+include "~/GNUstep/Library/AfterStep/looks" ChangeLook
+extension look.

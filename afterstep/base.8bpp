@@ -1,0 +1,24 @@
+# 02/17/1998 (GPLed) by Guylhem Aznar <guylhem@oeil.qc.ca>
+
+              ###########################################
+              # AfterStep 1.7.111 Default Configuration #
+              ###########################################
+
+##########################################################################
+# Directories
+#
+ModulePath		/usr/local/bin
+IconPath		NONE/X11/bitmaps/
+PixmapPath		~/GNUstep/Library/AfterStep/desktop/icons/8bpp/:/usr/local/share/afterstep/desktop/icons/8bpp/:~/GNUstep/Library/AfterStep/desktop/icons/common/:/usr/local/share/afterstep/desktop/icons/common/:~/GNUstep/Library/AfterStep/desktop/buttons/:/usr/local/share/afterstep/desktop/buttons/:~/GNUstep/Library/AfterStep/backgrounds/:/usr/local/share/afterstep/backgrounds/:NONE/X11/pixmaps/
+CursorPath              ~/GNUstep/Library/AfterStep/desktop/cursors:/usr/local/share/afterstep/desktop/cursors
+*ScriptPath		~/GNUstep/Library/AfterStep/scripts/:/usr/local/share/afterstep/scripts/
+#
+##########################################################################
+
+##########################################################################
+# Pager
+#
+DeskTopSize 2x2
+DeskTopScale 32
+#
+##########################################################################

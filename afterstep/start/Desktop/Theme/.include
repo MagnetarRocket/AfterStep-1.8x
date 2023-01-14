@@ -1,0 +1,4 @@
+keepname
+include "/usr/local/share/afterstep/themes" Exec installastheme.pl
+include "~/GNUstep/Library/AfterStep/themes" Exec installastheme.pl
+extension .tar.gz
