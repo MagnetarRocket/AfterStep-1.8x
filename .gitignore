@@ -118,3 +118,4 @@ src/Sound/ASSound.o
 src/Tile/Tile.o
 src/Wharf/icons.o
 src/Wharf/Wharf.o
+*/.DS_Store
