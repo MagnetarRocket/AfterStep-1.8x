@@ -1,7 +1,7 @@
 /* XPM */
 static char *intuitive3D[] = {
 /* width height num_colors chars_per_pixel */
-"    48    48      232            2",
+"48 48 232 2",
 /* colors */
 ".. c #000000",
 ".# c #000011",

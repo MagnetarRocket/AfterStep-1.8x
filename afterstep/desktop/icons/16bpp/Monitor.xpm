@@ -1,7 +1,7 @@
 /* XPM */
 static char *monitor[] = {
 /* width height num_colors chars_per_pixel */
-"    48    48      104            2",
+"48 48 104 2",
 /* colors */
 ".. c #000000",
 ".# c #001111",

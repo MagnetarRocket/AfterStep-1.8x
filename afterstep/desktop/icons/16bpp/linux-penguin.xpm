@@ -3,7 +3,7 @@
 /* Jorge "Commandant" Gonzalez <jorgegv@arrakis.es> */
 static char *linux-penguin-16[] = {
 /* width height num_colors chars_per_pixel */
-"    48    57       16            1",
+"48 57 16 1",
 /* colors */
 ". c #0e0b0b",
 "# c #b38b27",

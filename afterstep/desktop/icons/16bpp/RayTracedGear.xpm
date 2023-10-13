@@ -1,7 +1,7 @@
 /* XPM */
 static char *gear[] = {
 /* width height num_colors chars_per_pixel */
-"    48    48      249            2",
+"48 48 249 2",
 /* colors */
 ".. c #7a7a7b",
 ".# c #afafaf",
