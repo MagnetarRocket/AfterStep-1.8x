@@ -1,4 +1,4 @@
-/* This file contains code for unified image loading from JPEG file. */
+/* This file contains code for unified image loading from PNG files. */
 /********************************************************************/
 /* Copyright (c) 1998 Sasha Vasko   <sasha at aftercode.net>         */
 /********************************************************************/
