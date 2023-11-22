@@ -1,0 +1,1023 @@
+From: guylhem@oeil.qc.ca
+
+A few month ago, when AfterStep 1.1 was everything but stable, Stephen Ma
+<stephen_ma@mindlink.net> started AfterStepClassic over 1.0 to get more
+stability & less memory leaks.
+
+Here's a patch to add his code to AfterStep.
+
+However, this will help us to merge AfterStepClassic & normal AfterStep.
+
+diff -u -r src/add_window.c src.classic/add_window.c
+--- src/add_window.c	Sat Apr 11 14:42:21 1998
++++ src.classic/add_window.c	Sat Apr 11 14:20:54 1998
+@@ -450,6 +450,8 @@
+     XAddToSaveSet(dpy, tmp_win->w);
+ 
+     tmp_win->iconPixmap = None;
++    tmp_win->icon_type = NULL_ICON;
++    tmp_win->icon_interior = None;
+     tmp_win->icon_maskPixmap = None;
+ 
+ #ifndef NO_TEXTURE
+diff -u -r src/afterstep.c src.classic/afterstep.c
+--- src/afterstep.c	Sat Apr 11 14:43:40 1998
++++ src.classic/afterstep.c	Sat Apr 11 14:26:48 1998
+@@ -956,16 +956,18 @@
+ 		my_argv[i++] = "-s";
+ 	    while (i < 10)
+ 		my_argv[i++] = NULL;
++ 
++       /* really need to destroy all windows, explicitly,
++        * not sleep, but this is adequate for now
++	* sleep(1); ReapChildren();   // Moved to ClosePipes
++        */
+ 
+-
+-           sleep(1);
+-           ReapChildren();
+-	   execvp(command, my_argv);
++	    execvp(command, my_argv);
+ 	}
+ 	fprintf(stderr, "AfterStep: Call of '%s' failed!!!!\n", command);
+ 	execvp(g_argv[0], g_argv);	/* that _should_ work */
+diff -u -r src/afterstep.h src.classic/afterstep.h
+--- src/afterstep.h	Sat Apr 11 13:18:21 1998
++++ src.classic/afterstep.h	Sat Apr 11 14:23:26 1998
+@@ -114,6 +114,16 @@
+     Window icon_w;		/* the icon window */
+ #endif
+     Window icon_pixmap_w;	/* the icon window */
++    Drawable icon_interior;	/* interior of icon (pixmap or app window) */
++    int icon_pm_border;		/* border width of the icon pixmap */
++    int icon_type;		/* type of icon: OUR_BITMAP_ICON, etc. */
++#define NULL_ICON             0	/* no icon resources held */
++#define OUR_BITMAP_ICON       1	/* bitmap inside icon; we free */
++#define OUR_PIXMAP_ICON       2	/* pixmap inside icon; we free */
++#define APP_PIXMAP_ICON       3	/* pixmap inside icon; not ours to free  */
++#define APP_WINDOW_ICON       4	/* application-supplied window inside icon */
++
++
+ #ifndef NO_SHAPE
+     int wShaped;		/* is this a shaped window */
+ #endif
+diff -u -r src/events.c src.classic/events.c
+--- src/events.c	Sat Apr 11 13:18:21 1998
++++ src.classic/events.c	Sat Apr 11 14:20:55 1998
+@@ -404,31 +404,12 @@
+ 	    return;
+ 
+ 	if ((Tmp_win->wmhints->flags & IconPixmapHint) ||
+-	    (Tmp_win->wmhints->flags & IconWindowHint))
++	    (Tmp_win->wmhints->flags & IconWindowHint)) {
+ 	    if (Tmp_win->icon_bitmap_file == Scr.DefaultIcon)
+ 		Tmp_win->icon_bitmap_file = (char *) 0;
+ 
+-	if ((Tmp_win->wmhints->flags & IconPixmapHint) ||
+-	    (Tmp_win->wmhints->flags & IconWindowHint)) {
+-	    if (!(Tmp_win->flags & SUPPRESSICON)) {
+-#ifdef NO_ICON_BACKGROUND
+-		if (Tmp_win->icon_w)
+-		    XDestroyWindow(dpy, Tmp_win->icon_w);
+-		XDeleteContext(dpy, Tmp_win->icon_w, ASContext);
+-#endif
+-		if (Tmp_win->flags & ICON_OURS) {
+-		    if (Tmp_win->icon_pixmap_w != None) {
+-			XDestroyWindow(dpy, Tmp_win->icon_pixmap_w);
+-			XDeleteContext(dpy, Tmp_win->icon_pixmap_w, ASContext);
+-		    }
+-		} else
+-		    XUnmapWindow(dpy, Tmp_win->icon_pixmap_w);
+-	    }
+-#ifdef NO_ICON_BACKGROUND
+-	    Tmp_win->icon_w = None;
+-#endif
+-	    Tmp_win->icon_pixmap_w = None;
+-	    Tmp_win->iconPixmap = (Window) NULL;
++	    ReleaseIconStuff(Tmp_win);
++
+ 	    if (Tmp_win->flags & ICONIFIED) {
+ 		Tmp_win->flags &= ~ICONIFIED;
+ 		Tmp_win->flags &= ~ICON_UNMAPPED;
+@@ -1275,19 +1256,24 @@
+     return 0;
+ }
+ 
+-	/* Change the icon, bugs for that to wiz@iol.it */
+-void ChangeIcon()
+-{
+-    char *cp;
+-    if (!(Tmp_win->flags & SUPPRESSICON) && (Tmp_win->flags & ICON_OURS)) {
+-	SearchIcon(Tmp_win, &cp);
+-	if (cp && !(Tmp_win->icon_bitmap_file && cp == Tmp_win->icon_bitmap_file))
+-	    Tmp_win->icon_bitmap_file = cp;
+-	else
+-	    return;
++	/* Change the icon, bugs for that to stephen_ma@mindlink.bc.ca */
++	/* Original version by wiz@iol.it */
++static void ChangeIcon()
++{
++    if (!(Tmp_win->flags & SUPPRESSICON)) {
++	char *cp;
++	switch (Tmp_win->icon_type) {
++	case OUR_BITMAP_ICON:
++	case OUR_PIXMAP_ICON:
++	    SearchIcon(Tmp_win, &cp);
++	    if (cp && cp != Tmp_win->icon_bitmap_file) {
++		ReleasePixmaps(Tmp_win);
++		Tmp_win->icon_bitmap_file = cp;
++		GetIcon(Tmp_win);
++	    }
++	}
++	DrawIconWindow(Tmp_win);
+     }
+-    GetIcon(Tmp_win);
+-    DrawIconWindow(Tmp_win);
+ }
+ 
+ void SearchIcon(ASWindow * tmp_win, char **value)
+diff -u -r src/icons.c src.classic/icons.c
+--- src/icons.c	Sat Apr 11 13:18:22 1998
++++ src.classic/icons.c	Sat Apr 11 14:23:11 1998
+@@ -47,6 +47,7 @@
+ void GrabIconButtons(ASWindow *, Window);
+ void GrabIconKeys(ASWindow *, Window);
+ MyFont *IconFont;
++static int IconTitleHeight(ASWindow * Tmp_win, int extraHeight);
+ 
+ /****************************************************************************
+  *
+@@ -59,16 +60,7 @@
+     unsigned long valuemask;	/* mask for create windows */
+     XSetWindowAttributes attributes;	/* attributes for create windows */
+ 
+-    tmp_win->flags |= ICON_OURS;
+-    tmp_win->flags &= ~XPM_FLAG;
+-    tmp_win->flags &= ~PIXMAP_OURS;
+-    tmp_win->flags &= ~SHAPED_ICON;
+-    tmp_win->icon_pixmap_w = None;
+-    tmp_win->iconPixmap = None;
+-#ifndef NO_ICON_BACKGROUND
+-    tmp_win->icon_maskPixmap = None;	/* messo io */
+-#endif
+-    tmp_win->iconDepth = 0;
++    ReleaseIconStuff(tmp_win);
+ 
+     if (tmp_win->flags & SUPPRESSICON)
+ 	return;
+@@ -140,50 +132,61 @@
+ 
+ #endif
+ 
+-    if ((tmp_win->flags & ICON_OURS) && (tmp_win->icon_pm_width > 0)
+-	&& (tmp_win->icon_pm_height > 0)) {
++    /* Create the icon window */
++    tmp_win->icon_pixmap_w =
++	XCreateWindow(dpy, Scr.Root, final_x, final_y,
++		      tmp_win->icon_p_width, tmp_win->icon_p_height,
++		      0, CopyFromParent,
++		 CopyFromParent, CopyFromParent, valuemask, &attributes);
++
++    if (tmp_win->icon_type == APP_WINDOW_ICON) {
++	int resize = FALSE;
++	int width = tmp_win->icon_pm_width;
++	int height = tmp_win->icon_pm_height;
++	Window swallowed_w = (Window) tmp_win->icon_interior;
++	int titleH = IconTitleHeight(tmp_win, 1);
++
++	if (width > tmp_win->icon_p_width - 4)
++	    width = tmp_win->icon_p_width - 4, resize = TRUE;
++	if (height > tmp_win->icon_p_height - titleH - 4)
++	    height = tmp_win->icon_p_height - titleH - 4, resize = TRUE;
++	if (resize) {
++	    unsigned int bw = tmp_win->icon_pm_border << 1;
++	    XResizeWindow(dpy, swallowed_w, width - bw, height - bw);
++	}
++	XReparentWindow(dpy, swallowed_w, tmp_win->icon_pixmap_w,
++			(tmp_win->icon_p_width - width) / 2,
++		(tmp_win->icon_p_height - titleH - height) / 2 + titleH);
++	XMapWindow(dpy, swallowed_w);
++    }
++#ifndef NO_ICON_BACKGROUND
++    if (!(Scr.flags & KeepIconWindows)) {
+ 	tmp_win->icon_pixmap_w =
+ 	    XCreateWindow(dpy, Scr.Root, final_x, final_y,
+ 			  tmp_win->icon_p_width, tmp_win->icon_p_height,
+-		       0, CopyFromParent, CopyFromParent, CopyFromParent,
+-			  valuemask, &attributes);
+-    } else {
+-#ifndef NO_ICON_BACKGROUND
+-	if (!(Scr.flags & KeepIconWindows)) {
+-	    tmp_win->icon_pixmap_w =
+-		XCreateWindow(dpy, Scr.Root, final_x, final_y,
+-			   tmp_win->icon_p_width, tmp_win->icon_p_height,
+-			      0, CopyFromParent,
++			  0, CopyFromParent,
+ 		 CopyFromParent, CopyFromParent, valuemask, &attributes);
+ 
+-	    XReparentWindow(dpy, tmp_win->icon_pixmap_w,
+-			    Scr.Root, 8, 8);
++	XReparentWindow(dpy, tmp_win->icon_pixmap_w,
++			Scr.Root, 8, 8);
+ 
+-	    XMapWindow(dpy, tmp_win->icon_pixmap_w);
++	XMapWindow(dpy, tmp_win->icon_pixmap_w);
+ 
+-	    XResizeWindow(dpy, tmp_win->icon_pixmap_w,
++	XResizeWindow(dpy, tmp_win->icon_pixmap_w,
+ 		    tmp_win->icon_pm_width > tmp_win->icon_p_width - 16 ?
+-		     tmp_win->icon_p_width - 16 : tmp_win->icon_pm_width,
++		      tmp_win->icon_p_width - 16 : tmp_win->icon_pm_width,
+ 		  tmp_win->icon_pm_height > tmp_win->icon_p_height - 16 ?
+ 		  tmp_win->icon_p_height - 16 : tmp_win->icon_pm_height);
+-	    tmp_win->flags |= ICON_OURS;
+-	}
+-#endif
+-	attributes.event_mask = (ButtonPressMask | ButtonReleaseMask |
+-				 KeyPressMask | EnterWindowMask |
+-				 FocusChangeMask | LeaveWindowMask);
+-
+-	valuemask = CWEventMask;
+-	XChangeWindowAttributes(dpy, tmp_win->icon_pixmap_w, valuemask,
+-				&attributes);
++	tmp_win->flags |= ICON_OURS;
+     }
++#endif
+ 
+ #ifdef XPM
+ #ifndef NO_SHAPE
+ #ifdef NO_ICON_BACKGROUND
+     if (tmp_win->flags & KeepIconWindows) {
+ #else
+-    if (tmp_win->flags & SHAPED_ICON & KeepIconWindows) {
++    if (tmp_win->flags & SHAPED_ICON && Scr.flags & KeepIconWindows) {
+ #endif
+ 	XShapeCombineMask(dpy, tmp_win->icon_pixmap_w, ShapeBounding, 0, 0,
+ 			  tmp_win->icon_maskPixmap, ShapeSet);
+@@ -210,7 +213,6 @@
+     return;
+ }
+ 
+-
+ /****************************************************************************
+  *
+  * Draws the icon window
+@@ -218,6 +220,8 @@
+  ****************************************************************************/
+ void DrawIconWindow(ASWindow * Tmp_win)
+ {
++    int titleH;
++
+ 
+ #ifdef NO_ICON_BACKGROUND
+     GC Shadow, Relief;
+@@ -225,7 +229,7 @@
+ #endif
+     int w, h, x, y;
+ 
+-    if (Tmp_win->flags & SUPPRESSICON)
++    if (Tmp_win->flags & SUPPRESSICON || Tmp_win->icon_pixmap_w == None)
+ 	return;
+ 
+ #ifdef NO_ICON_BACKGROUND
+@@ -233,19 +237,15 @@
+ 	flush_expose(Tmp_win->icon_w);
+ #endif
+ 
+-    if (Tmp_win->icon_pixmap_w != None) {
+-	flush_expose(Tmp_win->icon_pixmap_w);
++    flush_expose(Tmp_win->icon_pixmap_w);
+ 
+ #ifndef NO_ICON_BACKGROUND
+-	if ((Tmp_win->flags & ICON_OURS) && (Tmp_win->icon_pixmap_w != None))
+-	    XSetWindowBackgroundPixmap(dpy, Tmp_win->icon_pixmap_w,
+-				       Scr.IconBgPixmap);
+-	XClearWindow(dpy, Tmp_win->icon_pixmap_w);
+-
+-	XMoveWindow(dpy, Tmp_win->icon_pixmap_w, Tmp_win->icon_x_loc,
+-		    Tmp_win->icon_y_loc);
++    XSetWindowBackgroundPixmap(dpy, Tmp_win->icon_pixmap_w, Scr.IconBgPixmap);
++    XClearWindow(dpy, Tmp_win->icon_pixmap_w);
++    XMoveWindow(dpy, Tmp_win->icon_pixmap_w, Tmp_win->icon_x_loc,
++		Tmp_win->icon_y_loc);
+ #endif
+-    }
++
+ #ifdef NO_ICON_BACKGROUND
+     if (Scr.Hilite == Tmp_win) {
+ 	if (Scr.d_depth < 2)
+@@ -295,8 +295,7 @@
+ 
+     }
+ 
+-    if ((Tmp_win->flags & ICON_OURS) && (Tmp_win->icon_pixmap_w != None))
+-	XSetWindowBackground(dpy, Tmp_win->icon_pixmap_w, BackColor);
++    XSetWindowBackground(dpy, Tmp_win->icon_pixmap_w, BackColor);
+ 
+     if (Tmp_win->icon_w != None)
+ 	XSetWindowBackground(dpy, Tmp_win->icon_w, BackColor);
+@@ -304,9 +303,8 @@
+     /* write the icon label */
+     NewFontAndColor(IconFont->font->fid, TextColor, BackColor);
+ 
+-    if (Tmp_win->icon_pixmap_w != None)
+-	XMoveWindow(dpy, Tmp_win->icon_pixmap_w, Tmp_win->icon_x_loc,
+-		    Tmp_win->icon_y_loc);
++    XMoveWindow(dpy, Tmp_win->icon_pixmap_w, Tmp_win->icon_x_loc,
++		Tmp_win->icon_y_loc);
+ 
+     if (Tmp_win->icon_w != None) {
+ 	XMoveResizeWindow(dpy, Tmp_win->icon_w, Tmp_win->icon_xl_loc,
+@@ -348,9 +346,8 @@
+     }
+ #else				/* NO_ICON_BACKGROUND */
+ /* need to locate the icon pixmap */
+-    if (Tmp_win->iconPixmap != None) {
+-	int titleH = 0;
+-
++    titleH = IconTitleHeight(Tmp_win, -4);
++    if (Tmp_win->icon_interior && Tmp_win->icon_type != APP_WINDOW_ICON) {
+ 	x = y = 0.0;
+ 	w = Tmp_win->icon_pm_width;
+ 	if (w > Tmp_win->icon_p_width - 16) {
+@@ -362,86 +359,74 @@
+ 	    y = (h - Tmp_win->icon_p_height + 16) / 2;
+ 	    h = Tmp_win->icon_p_height - 16;
+ 	}
+-	if (Scr.flags & IconTitle && (Tmp_win->icon_name != NULL
+-				      || Tmp_win->name != NULL)) {
+-	    titleH = Scr.IconFont.height - 4;
+-	}
+ 	if (Tmp_win->icon_maskPixmap) {
+ 	    XSetClipOrigin(dpy, Scr.FontGC, (Tmp_win->icon_p_width - w) / 2,
+ 			   (Tmp_win->icon_p_height - h) / 2 + titleH);
+ 	    XSetClipMask(dpy, Scr.FontGC, Tmp_win->icon_maskPixmap);
+ 	}
+ 	if (Tmp_win->iconDepth == Scr.d_depth) {
+-	    XCopyArea(dpy, Tmp_win->iconPixmap, Tmp_win->icon_pixmap_w, Scr.FontGC,
++	    XCopyArea(dpy, Tmp_win->icon_interior, Tmp_win->icon_pixmap_w, Scr.FontGC,
+ 		      x, y,
+ 		      w, h,
+ 		      (Tmp_win->icon_p_width - w) / 2,
+ 		      (Tmp_win->icon_p_height - h) / 2 + titleH);
+ 	} else
+-	    XCopyPlane(dpy, Tmp_win->iconPixmap, Tmp_win->icon_pixmap_w, Scr.FontGC,
++	    XCopyPlane(dpy, Tmp_win->icon_interior, Tmp_win->icon_pixmap_w, Scr.FontGC,
+ 		       x, y,
+ 		       w, h,
+ 		       (Tmp_win->icon_p_width - w) / 2,
+ 		       (Tmp_win->icon_p_height - h) / 2 + titleH, 1);
+ 	XSetClipMask(dpy, Scr.FontGC, 0);
+-
+ #endif
+ 
+ #ifdef NO_ICON_BACKGROUND
+ 	XShapeCombineMask(dpy, Tmp_win->icon_pixmap_w, ShapeBounding, 0, 0,
+ 			  Tmp_win->iconPixmap, ShapeSet);
+-#else
+-	if (Scr.flags & IconTitle) {
+-	    int textX;
+-	    int cnt = 0;
+-	    char *text = NULL;
+-
+-	    XSetForeground(dpy, Scr.IconGC, Scr.HiColors.back);
+-
+-	    XFillRectangle(dpy, Tmp_win->icon_pixmap_w, Scr.IconGC, 1, 1,
+-			   Tmp_win->icon_p_width - 2, titleH + 6);
+-
+-	    XSetForeground(dpy, Scr.IconGC, Scr.HiColors.fore);
+-	    if (Tmp_win->icon_name == NULL) {
+-		if (Tmp_win->name != NULL) {
+-		    cnt = strlen(Tmp_win->name);
+-		    textX = XTextWidth(Scr.IconFont.font, Tmp_win->name, cnt);
+-		    if (textX < Tmp_win->icon_p_width) {
+-			textX = (Tmp_win->icon_p_width - textX) / 2;
+-			text = Tmp_win->name;
+-		    } else {
+-			int i;
+-			/* try to find approx. characters that fit here */
+-			i = (Tmp_win->icon_p_width * cnt) / textX;
+-			textX = 1;
+-			text = &(Tmp_win->name[cnt - i]);
+-			cnt = i;
+-		    }
+-		}
+-	    } else {
+-		cnt = strlen(Tmp_win->icon_name);
+-		textX = XTextWidth(Scr.IconFont.font, Tmp_win->icon_name, cnt);
++#endif
++
++    }
++    if (Scr.flags & IconTitle) {
++	int textX, cnt = 0;
++	char *text = NULL;
++
++	XSetForeground(dpy, Scr.IconGC, Scr.HiColors.back);
++	XFillRectangle(dpy, Tmp_win->icon_pixmap_w, Scr.IconGC, 1, 1,
++		       Tmp_win->icon_p_width - 2, titleH + 6);
++	XSetForeground(dpy, Scr.IconGC, Scr.HiColors.fore);
++	if (Tmp_win->icon_name == NULL) {
++	    if (Tmp_win->name != NULL) {
++		cnt = strlen(Tmp_win->name);
++		textX = XTextWidth(Scr.IconFont.font, Tmp_win->name, cnt);
+ 		if (textX < Tmp_win->icon_p_width) {
+ 		    textX = (Tmp_win->icon_p_width - textX) / 2;
+-		    text = Tmp_win->icon_name;
++		    text = Tmp_win->name;
+ 		} else {
+ 		    int i;
+ 		    /* try to find approx. characters that fit here */
+ 		    i = (Tmp_win->icon_p_width * cnt) / textX;
+ 		    textX = 1;
+-		    text = &(Tmp_win->icon_name[cnt - i]);
++		    text = &(Tmp_win->name[cnt - i]);
+ 		    cnt = i;
+ 		}
+ 	    }
+-
+-
+-	    XDrawString(dpy, Tmp_win->icon_pixmap_w, Scr.IconGC, textX,
+-			Scr.IconFont.font->ascent + 1, text, cnt);
+-
++	} else {
++	    cnt = strlen(Tmp_win->icon_name);
++	    textX = XTextWidth(Scr.IconFont.font, Tmp_win->icon_name, cnt);
++	    if (textX < Tmp_win->icon_p_width) {
++		textX = (Tmp_win->icon_p_width - textX) / 2;
++		text = Tmp_win->icon_name;
++	    } else {
++		int i;
++		/* try to find approx. characters that fit here */
++		i = (Tmp_win->icon_p_width * cnt) / textX;
++		textX = 1;
++		text = &(Tmp_win->icon_name[cnt - i]);
++		cnt = i;
++	    }
+ 	}
++	XDrawString(dpy, Tmp_win->icon_pixmap_w, Scr.IconGC, textX,
++		    Scr.IconFont.font->ascent + 1, text, cnt);
+     }
+-#endif
+-
+ }
+ 
+ 
+@@ -768,8 +753,7 @@
+ 	(Scr.flags & ClickToFocus) && (tmp_win->next)) {
+ 	SetFocus(tmp_win->next->w, tmp_win->next, False);
+     }
+-    /* iconify transients first */
+-    for (t = Scr.ASRoot.next; t != NULL; t = t->next) {
++    /* iconify transients first */ for (t = Scr.ASRoot.next; t != NULL; t = t->next) {
+ 	if ((t == tmp_win) ||
+ 	    ((t->flags & TRANSIENT) && (t->transientfor == tmp_win->w))) {
+ 	    /*
+@@ -859,38 +843,51 @@
+     tmp_win->icon_pm_height = 0;
+     tmp_win->icon_pm_width = 0;
+ 
+-    /* First, check for a monochrome bitmap */
+-    if (tmp_win->icon_bitmap_file != NULL)
+-	GetBitmapFile(tmp_win);
+-
+-    /* Next, check for a color pixmap */
+-    if ((tmp_win->icon_bitmap_file != NULL) &&
+-	(tmp_win->icon_pm_height == 0) && (tmp_win->icon_pm_width == 0))
+-	GetXPMFile(tmp_win);
+-
+-    /* Next, See if the app supplies its own icon window */
+-    if ((tmp_win->icon_pm_height == 0) && (tmp_win->icon_pm_width == 0) &&
+-	(tmp_win->wmhints) && (tmp_win->wmhints->flags & IconWindowHint))
+-	GetIconWindow(tmp_win);
+-
+-    /* Finally, try to get icon bitmap from the application */
+-    if ((tmp_win->icon_pm_height == 0) && (tmp_win->icon_pm_width == 0) &&
+-	(tmp_win->wmhints) && (tmp_win->wmhints->flags & IconPixmapHint))
+-	GetIconBitmap(tmp_win);
+-
++    if (tmp_win->wmhints != NULL) {
++	/* First preference is an app-supplied icon window */
++	if (GetIconWindow(tmp_win))
++	    goto found;
++
++	/* Second preference is an app-supplied pixmap */
++	if (GetIconBitmap(tmp_win))
++	    goto found;
++    }
++    if (tmp_win->icon_bitmap_file != NULL) {
++	/* Third preference is a color pixmap given in .steprc file */
++	if (GetXPMFile(tmp_win))
++	    goto found;
++
++	/* Fourth preference is a monochrome pixmap given in .steprc file */
++	if (GetBitmapFile(tmp_win))
++	    goto found;
++    }
++    /* Else there is nothing inside the icon. Pretend that the application
++       gave us an empty pixmap. */
++    tmp_win->icon_type = APP_PIXMAP_ICON;
++    tmp_win->icon_interior = None;
++    tmp_win->icon_maskPixmap = None;
++    tmp_win->icon_pm_width = 0;
+ #ifndef NO_ICON_BACKGROUND
+-    if (tmp_win->icon_pm_width == 0)
+-	tmp_win->icon_pm_width = Scr.IconBgWidth - 16;
++    tmp_win->icon_pm_width = Scr.IconBgWidth - 16;
+ #endif
++    tmp_win->icon_pm_height = 0;
+ 
+-    if ((tmp_win->flags & ICON_OURS) || !(Scr.flags & KeepIconWindows)) {
+-	tmp_win->icon_p_width = Scr.IconBgWidth;
+-	tmp_win->icon_p_height = Scr.IconBgHeight;
+-    } else {
++    /* We have determined the icon's interior */
++  found:
++    if (tmp_win->icon_pm_width == 0 || tmp_win->icon_pm_height == 0) {
++	tmp_win->icon_pm_width = Scr.IconBgWidth - 16;
++	tmp_win->icon_pm_height = Scr.IconBgHeight - 16;
++    }
++#ifndef NO_SHAPE
++    if (Scr.flags & KeepIconWindows) {
++	/* ßßß Above condition is not sufficient */
+ 	tmp_win->icon_p_width = tmp_win->icon_pm_width;
+ 	tmp_win->icon_p_height = tmp_win->icon_pm_height;
++	return;
+     }
+-
++#endif
++    tmp_win->icon_p_width = Scr.IconBgWidth;
++    tmp_win->icon_p_height = Scr.IconBgHeight;
+ }
+ 
+ #ifdef NO_ICON_BACKGROUND
+@@ -913,35 +910,39 @@
+     return;
+ }
+ #endif
+-
+ /****************************************************************************
+  *
+  * Looks for a monochrome icon bitmap file
+  *
+- ****************************************************************************/
+-void GetBitmapFile(ASWindow * tmp_win)
++ ****************************************************************************/ static int GetBitmapFile(ASWindow * tmp_win)
+ {
+-    char *path = NULL;
++    char *path;
+     int HotX, HotY;
++    unsigned int width, height;
++    Pixmap pixmap;
+     extern char *IconPath;
+ 
+     path = findIconFile(tmp_win->icon_bitmap_file, IconPath, R_OK);
+-
+     if (path == NULL)
+-	return;
+-    if (XReadBitmapFile(dpy, Scr.Root, path,
+-			(unsigned int *) &tmp_win->icon_pm_width,
+-			(unsigned int *) &tmp_win->icon_pm_height,
+-			&tmp_win->iconPixmap,
+-			&HotX, &HotY) != BitmapSuccess) {
+-	tmp_win->icon_pm_width = 0;
+-	tmp_win->icon_pm_height = 0;
+-    }
++	return FALSE;
++
++    if (XReadBitmapFile(dpy, Scr.Root, path, &width, &height, &pixmap,
++			&HotX, &HotY) == BitmapSuccess) {
++	tmp_win->icon_type = OUR_BITMAP_ICON;
++	tmp_win->icon_pm_width = width;
++	tmp_win->icon_pm_height = height;
++	tmp_win->icon_pm_border = 0;
++	tmp_win->icon_interior = (Drawable) pixmap;
++	tmp_win->icon_maskPixmap = None;
++	free(path);
+ #ifdef NO_ICON_BACKGROUND
+-    Scr.IconBgWidth = tmp_win->icon_pm_width;
+-    Scr.IconBgHeight = tmp_win->icon_pm_height;
++	Scr.IconBgWidth = tmp_win->icon_pm_width;
++	Scr.IconBgHeight = tmp_win->icon_pm_height;
+ #endif
++	return TRUE;
++    }
+     free(path);
++    return FALSE;
+ }
+ 
+ /****************************************************************************
+@@ -949,31 +950,34 @@
+  * Looks for a color XPM icon file
+  *
+  ****************************************************************************/
+-void GetXPMFile(ASWindow * tmp_win)
++static int GetXPMFile(ASWindow * tmp_win)
+ {
+ #ifdef XPM
+     XWindowAttributes root_attr;
+     XpmAttributes xpm_attributes;
++    unsigned int width, height;
++    Pixmap pixmap, mask;
+     extern char *PixmapPath;
+-    char *path = NULL;
++    char *path;
+ 
+     path = findIconFile(tmp_win->icon_bitmap_file, PixmapPath, R_OK);
++
+     if (path == NULL)
+-	return;
++	return FALSE;
+ 
+     XGetWindowAttributes(dpy, Scr.Root, &root_attr);
+     xpm_attributes.colormap = root_attr.colormap;
+     xpm_attributes.closeness = 40000;	/* Allow for "similar" colors */
+     xpm_attributes.valuemask = XpmSize | XpmReturnPixels | XpmColormap | XpmCloseness;
+ 
+-    if (XpmReadFileToPixmap(dpy, Scr.Root, path,
+-			 &tmp_win->iconPixmap, &tmp_win->icon_maskPixmap,
++    if (XpmReadFileToPixmap(dpy, Scr.Root, path, &pixmap, &mask,
+ 			    &xpm_attributes) == XpmSuccess) {
+-
++	tmp_win->icon_type = OUR_PIXMAP_ICON;
++	tmp_win->icon_interior = (Drawable) pixmap;
++	tmp_win->icon_maskPixmap = mask;
+ 	tmp_win->icon_pm_width = xpm_attributes.width;
+ 	tmp_win->icon_pm_height = xpm_attributes.height;
+-	tmp_win->flags |= XPM_FLAG;
+-	tmp_win->flags |= PIXMAP_OURS;
++	tmp_win->icon_pm_border = 0;
+ 	tmp_win->iconDepth = Scr.d_depth;
+ 
+ #ifdef NO_ICON_BACKGROUND
+@@ -984,10 +988,14 @@
+ #ifndef NO_SHAPE
+ 	if (tmp_win->icon_maskPixmap)
+ 	    tmp_win->flags |= SHAPED_ICON;
++	else
+ #endif
++	    free(path);
++	return TRUE;
+     }
+     free(path);
+ #endif				/* XPM */
++    return FALSE;
+ }
+ 
+ /****************************************************************************
+@@ -995,69 +1003,167 @@
+  * Looks for an application supplied icon window
+  *
+  ****************************************************************************/
+-void GetIconWindow(ASWindow * tmp_win)
++static int GetIconWindow(ASWindow * tmp_win)
+ {
++    Window w;
++    unsigned int width, height;
++
+     /* We are guaranteed that wmhints is non-null when calling this
+      * routine */
+-    if (XGetGeometry(dpy, tmp_win->wmhints->icon_window, &JunkRoot,
+-		&JunkX, &JunkY, (unsigned int *) &tmp_win->icon_pm_width,
+-		     (unsigned int *) &tmp_win->icon_pm_height,
++    if (!(tmp_win->wmhints->flags & IconWindowHint))
++	return FALSE;
++    if ((w = tmp_win->wmhints->icon_window) == None)
++	return FALSE;
++    if (XGetGeometry(dpy, w, &JunkRoot,
++		     &JunkX, &JunkY, &width, &height,
+ 		     &JunkBW, &JunkDepth) == 0) {
+ 	fprintf(stderr, "Help! Bad Icon Window!\n");
++	return FALSE;
+     }
+-    tmp_win->icon_pm_width += JunkBW << 1;
+-    tmp_win->icon_pm_height += JunkBW << 1;
+-    /*
+-     * Now make the new window the icon window for this window,
+-     * and set it up to work as such (select for key presses
+-     * and button presses/releases, set up the contexts for it,
+-     * and define the cursor for it).
+-     */
+-    if (tmp_win->wmhints->flags & IconMaskHint) {
+-#ifdef SHAPE
+-	tmp_win->flags |= SHAPED_ICON;
+-#endif
+-	tmp_win->icon_maskPixmap = tmp_win->wmhints->icon_mask;
+-    }
+-    /* Make sure that the window is a child of the root window ! */
+-    /* Olwais screws this up, maybe others do too! */
+-    tmp_win->icon_pixmap_w = tmp_win->wmhints->icon_window;
++    /* ßßßßßßßßßß *//* Experimental. An application-supplied border looks ugly against
++       the AfterStep-supplied icon background, so nuke the border. */ XSetWindowBorderWidth(dpy, w, 0);
++    JunkBW = 0;
++/* ßßßßßßßßßßß */
++
++    tmp_win->icon_type = APP_WINDOW_ICON;
++    tmp_win->icon_interior = (Drawable) (w);
++    tmp_win->icon_maskPixmap = None;
++    tmp_win->icon_pm_width = width + (JunkBW << 1);
++    tmp_win->icon_pm_height = height + (JunkBW << 1);
++    tmp_win->icon_pm_border = JunkBW;
+ 
+-#ifndef NO_ICON_BACKGROUND
+-    XResizeWindow(dpy, tmp_win->icon_pixmap_w, 64, 64);
+-#else
++    if (tmp_win->wmhints->flags & IconMaskHint)
++	if (tmp_win->wmhints->icon_mask != None) {
++#ifndef NO_SHAPE
++	    tmp_win->flags |= SHAPED_ICON;
++#endif
++	    tmp_win->icon_maskPixmap = tmp_win->wmhints->icon_mask;
++	}
++    /* ß Make sure that the window is a child of the root window ! */
++    /* ß Olwais screws this up, maybe others do too! */
++    /* ß tmp_win->icon_pixmap_w = tmp_win->wmhints->icon_window; */
++
++#ifdef NO_ICON_BACKGROUND
+     Scr.IconBgWidth = tmp_win->icon_pm_width;
+     Scr.IconBgHeight = tmp_win->icon_pm_height;
+ #endif
+-    XReparentWindow(dpy, tmp_win->icon_pixmap_w, Scr.Root, 0, 0);
+-    tmp_win->flags &= ~ICON_OURS;
+-
++    return TRUE;
+ }
+ 
+-
+ /****************************************************************************
+  *
+  * Looks for an application supplied bitmap or pixmap
+  *
+  ****************************************************************************/
+-void GetIconBitmap(ASWindow * tmp_win)
++
++static int GetIconBitmap(ASWindow * tmp_win)
+ {
++    Pixmap pixmap;
++    unsigned int width, height;
++
+     /* We are guaranteed that wmhints is non-null when calling this
+      * routine */
+-    XGetGeometry(dpy, tmp_win->wmhints->icon_pixmap, &JunkRoot, &JunkX, &JunkY,
+-		 (unsigned int *) &tmp_win->icon_pm_width,
+-	 (unsigned int *) &tmp_win->icon_pm_height, &JunkBW, &JunkDepth);
+-    tmp_win->iconPixmap = tmp_win->wmhints->icon_pixmap;
++    if (!(tmp_win->wmhints->flags & IconPixmapHint))
++	return FALSE;
++    if ((pixmap = tmp_win->wmhints->icon_pixmap) == None)
++	return FALSE;
++    if (XGetGeometry(dpy, pixmap, &JunkRoot, &JunkX, &JunkY,
++		     &width, &height, &JunkBW, &JunkDepth)) {
++	fprintf(stderr, "Help! Bad Icon Pixmap!\n");
++	return FALSE;
++    }
++    tmp_win->icon_type = APP_PIXMAP_ICON;
++    tmp_win->icon_interior = (Drawable) pixmap;
++    tmp_win->icon_maskPixmap = None;
++
++    tmp_win->icon_pm_width = width;
++    tmp_win->icon_pm_height = height;
++    tmp_win->icon_pm_border = 0;
+     tmp_win->iconDepth = JunkDepth;
+-
+-    if (tmp_win->wmhints->flags & IconMaskHint) {
++    if (tmp_win->wmhints->flags & IconMaskHint)
++	if (tmp_win->wmhints->icon_mask != None) {
+ #ifndef NO_SHAPE
+-	tmp_win->flags |= SHAPED_ICON;
++	    tmp_win->flags |= SHAPED_ICON;
+ #endif
+-	tmp_win->icon_maskPixmap = tmp_win->wmhints->icon_mask;
+-    }
++	    tmp_win->icon_maskPixmap = tmp_win->wmhints->icon_mask;
++	}
+ #ifdef NO_ICON_BACKGROUND
+     Scr.IconBgWidth = tmp_win->icon_pm_width;
+     Scr.IconBgHeight = tmp_win->icon_pm_height;
+ #endif
++    return TRUE;
++}
++
++/* Release a window's pixmaps */
++void ReleasePixmaps(ASWindow * tmp_win)
++{
++    if (tmp_win->icon_interior != None)
++	XFreePixmap(dpy, (Pixmap) tmp_win->icon_interior);
++    if (tmp_win->icon_maskPixmap != None)
++	XFreePixmap(dpy, tmp_win->icon_maskPixmap);
++}				/* Release all icon resources for specified window */
++void ReleaseIconStuff(ASWindow * tmp_win)
++{
++    Window w;
++
++    switch (tmp_win->icon_type) {
++    default:
++    case NULL_ICON:		/* no icon resources held */
++	return;
++    case OUR_BITMAP_ICON:	/* bitmap inside icon; we free */
++    case OUR_PIXMAP_ICON:	/* pixmap inside icon; we free */
++	ReleasePixmaps(tmp_win);
++	break;
++    case APP_PIXMAP_ICON:	/* app pixmap inside icon; not ours to free  */
++	break;
++    case APP_WINDOW_ICON:	/* application-supplied window inside icon */
++	if (tmp_win->icon_interior != None) {
++	    Window swallowed_w = (Window) tmp_win->icon_interior;
++	    XUnmapWindow(dpy, swallowed_w);
++	    /* Reparent swallowed window so it won't die when icon window is
++	       destroyed */
++	    XReparentWindow(dpy, swallowed_w, Scr.Root, 0, 0);
++	    XDeleteContext(dpy, swallowed_w, ASContext);
++	}
++	break;
++    }
++    if ((w = tmp_win->icon_pixmap_w) != None) {
++	XDestroyWindow(dpy, w);
++	XDeleteContext(dpy, w, ASContext);
++    }
++#ifdef NO_ICON_BACKGROUND
++    if ((w = tmp_win->icon_w) != None) {
++	XDestroyWindow(dpy, Tmp_win->icon_w);
++	XDeleteContext(dpy, Tmp_win->icon_w, ASContext);
++    }
++#endif
++
++    tmp_win->icon_type = NULL_ICON;
++    tmp_win->icon_pixmap_w = None;
++    tmp_win->icon_interior = None;
++    tmp_win->iconDepth = 0;
++    tmp_win->flags &= ~SHAPED_ICON;
++/* ßß */
++#ifdef NO_ICON_BACKGROUND
++    tmp_win->icon_w = None;
++#endif
++    tmp_win->icon_pixmap_w = None;
++    tmp_win->iconPixmap = (Window) NULL;
++/* ßß */
++}
++
++
++/****************************************************************************
++ *
++ * Returns height of a window's icon title plus an extraHeight.
++ * Returns zero if icon titles are disabled or the window has no title.
++ *
++ ****************************************************************************/
++static int IconTitleHeight(ASWindow * Tmp_win, int extraHeight)
++{
++    if (!(Scr.flags & IconTitle))
++	return 0;
++    if (Tmp_win->icon_name == NULL && Tmp_win->name == NULL)
++	return 0;
++    return Scr.IconFont.height + extraHeight;
+ }
+diff -u -r src/misc.c src.classic/misc.c
+--- src/misc.c	Sat Apr 11 13:18:22 1998
++++ src.classic/misc.c	Sat Apr 11 14:12:47 1998
+@@ -163,22 +163,8 @@
+ 
+     XDeleteContext(dpy, Tmp_win->w, ASContext);
+ 
+-/* ßßßßßßß
+-   if ((Tmp_win->icon_w)&&(Tmp_win->flags & PIXMAP_OURS))
+-   XFreePixmap(dpy, Tmp_win->iconPixmap);
+- */
+ 
+-#ifdef NO_ICON_BACKGROUND
+-    if (Tmp_win->icon_w) {
+-	XDestroyWindow(dpy, Tmp_win->icon_w);
+-	XDeleteContext(dpy, Tmp_win->icon_w, ASContext);
+-    }
+-#endif
+-
+-    if ((Tmp_win->flags & ICON_OURS) && (Tmp_win->icon_pixmap_w != None))
+-	XDestroyWindow(dpy, Tmp_win->icon_pixmap_w);
+-    if (Tmp_win->icon_pixmap_w != None)
+-	XDeleteContext(dpy, Tmp_win->icon_pixmap_w, ASContext);
++  ReleaseIconStuff(Tmp_win);
+ 
+     if (Tmp_win->flags & TITLE) {
+ 	XDeleteContext(dpy, Tmp_win->title_w, ASContext);
+@@ -213,6 +199,8 @@
+ 	XFreePixmap(dpy, Tmp_win->backPixmap);
+     if (Tmp_win->backPixmap2 != None)
+ 	XFreePixmap(dpy, Tmp_win->backPixmap2);
++  if (Tmp_win->backPixmap3 != None)
++    XFreePixmap(dpy, Tmp_win->backPixmap3);
+ #endif
+ 
+     free((char *) Tmp_win);
+diff -u -r src/misc.h src.classic/misc.h
+--- src/misc.h	Sat Apr 11 13:18:22 1998
++++ src.classic/misc.h	Sat Apr 11 14:20:46 1998
+@@ -161,6 +161,8 @@
+ extern void CreateIconWindow(ASWindow *, int, int);
+ extern void GetIcon(ASWindow *);
+ extern void SearchIcon(ASWindow *, char **);
++extern void       ReleasePixmaps(ASWindow *tmp_win);
++extern void       ReleaseIconStuff(ASWindow *tmp_win); 
+ 
+ extern AFTER_INLINE void RelieveWindow(ASWindow *, Window, int, int, int, int,
+                                        GC, GC, int);
+@@ -214,10 +216,6 @@
+ extern void KillModule(int, int);
+ extern void ClosePipes(void);
+ extern char *findIconFile(char *, char *, int);
+-extern void GetBitmapFile(ASWindow *);
+-extern void GetXPMFile(ASWindow *);
+-extern void GetIconWindow(ASWindow *);
+-extern void GetIconBitmap(ASWindow *);
+ extern void SmartPlacement(ASWindow *, int, int, int *, int *);
+ extern void usage(void);
+ void Broadcast(unsigned long, unsigned long ,
+diff -u -r src/module.c src.classic/module.c
+--- src/module.c	Sat Apr 11 13:18:22 1998
++++ src.classic/module.c	Sat Apr 11 14:16:58 1998
+@@ -48,6 +48,7 @@
+ int *readPipes;
+ int *writePipes;
+ int *pipeOn;
++int *exitFirst;
+ unsigned long *PipeMask;
+ struct queue_buff_struct **pipeQueue;
+ extern char global_base_file[255];
+@@ -65,6 +66,7 @@
+     writePipes = (int *) safemalloc(sizeof(int) * npipes);
+     readPipes = (int *) safemalloc(sizeof(int) * npipes);
+     pipeOn = (int *) safemalloc(sizeof(int) * npipes);
++    exitFirst = (int *)safemalloc(sizeof(int)*npipes);
+     PipeMask = (unsigned long *) safemalloc(sizeof(unsigned long) * npipes);
+     pipeQueue = (struct queue_buff_struct **)
+ 	safemalloc(sizeof(struct queue_buff_struct *) * npipes);
+@@ -73,24 +75,47 @@
+ 	writePipes[i] = -1;
+ 	readPipes[i] = -1;
+ 	pipeOn[i] = -1;
++      exitFirst[i] = FALSE;
+ 	PipeMask[i] = MAX_MASK;
+ 	pipeQueue[i] = (struct queue_buff_struct *) NULL;
+ 
+     }
+ }
+ 
++static void CloseOnePipe(int channel)
++{
++  if(writePipes[channel]>0)
++  {
++    close(writePipes[channel]);
++    close(readPipes[channel]);
++  }
++  while(pipeQueue[channel] != NULL)
++  {
++    DeleteQueueBuff(channel);
++  }
++}
++
+ void ClosePipes(void)
+ {
+     int i;
+-    for (i = 0; i < npipes; i++) {
+-	if (writePipes[i] > 0) {
+-	    close(writePipes[i]);
+-	    close(readPipes[i]);
+-	}
+-	while (pipeQueue[i] != NULL) {
+-	    DeleteQueueBuff(i);
+-	}
+-    }
++
++  /* Afterstep is about to terminate, so shut down all exit-first
++     modules and wait for them to die. We must do this first in case
++     the Wharf is swallowing one or more module windows: the Wharf
++     must unswallow said windows before Afterstep closes the
++     corresponding pipes. */
++  for (i = 0;  i < npipes;  i++)
++    if (exitFirst[i])
++      CloseOnePipe(i);
++  sleep(1);
++  ReapChildren();
++
++  /* OK, now close the other modules */
++  for(i=0;i<npipes;i++)
++    if (!exitFirst[i])
++      CloseOnePipe(i);
++  sleep(1);
++  ReapChildren();
+ }
+ 
+ void executeModule(char *action, FILE * fd, char **win, int *context)
+@@ -286,6 +311,15 @@
+ 	if (n != 3)
+ 	    n = sscanf(text, "%s %d%c %d%c", function, &func_val_1, &unit_1, &func_val_2, &unit_2);
+ 
++      if(mystrcasecmp(function,"EXIT_FIRST")==0)
++        {
++          /* An exit-first module gets terminated before other
++             modules. This command is used primarily by the Wharf so
++             it gets a chance to unswallow a module's window before
++             that module terminates. */
++          exitFirst[channel] = TRUE;
++          return;
++        }
+ 	if (mystrcasecmp(function, "SET_MASK") == 0) {
+ 	    PipeMask[channel] = func_val_1;
+ 	    return;

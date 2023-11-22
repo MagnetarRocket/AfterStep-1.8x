@@ -1,0 +1,59 @@
+./Wharf/Wharf.c
+4,5d3
+<  * Fixed race condition on exit.  Stephen Ma 1997.
+<  *
+268,271d265
+<   /* We want to exit before other modules, in case we need to
+<      unswallow their windows. */
+<   SendText(fd, "EXIT_FIRST", 0);
+< 
+1501,1506c1495,1497
+<     if (SoundActive)
+<       {
+< 	write(PlayerChannel[1],&val,sizeof(val));
+< 	if (SoundThread != 0)
+< 	  kill(SoundThread,SIGUSR1);
+<       }
+---
+>     write(PlayerChannel[1],&val,sizeof(val));
+>     if (SoundThread != 0)
+>       kill(SoundThread,SIGUSR1);
+1512c1503,1505
+< 	if(Buttons[button].swallow == 3  ||  Buttons[button].swallow == 4)
+---
+>         /* delete swallowed windows, but not modules (afterstep handles those) */
+> 	if(((Buttons[button].swallow == 3)||(Buttons[button].swallow == 4))&&
+> 	    (Buttons[button].module == 0))
+1514,1525c1507,1508
+< 	    /* Unswallow the window so exit() won't attempt to destroy
+<                said window after it has already destroyed itself! */
+< 	    XReparentWindow(dpy, Buttons[button].IconWin, Root, 0, 0);
+< 
+< 	    /* Delete swallowed windows, but not modules (afterstep
+< 	       handles those) */
+< 	    if (Buttons[button].module == 0)
+< 	      {
+< 		XSync(dpy,0);	/* ensure XReparentWindow gets done first */
+< 		send_clientmessage(Buttons[button].IconWin,wm_del_win,CurrentTime);
+< 		XSync(dpy,0);
+< 	      }
+---
+> 	    send_clientmessage(Buttons[button].IconWin,wm_del_win,CurrentTime);
+> 	    XSync(dpy,0);
+./Wharf/Wharf.h
+./Wharf/Wharf.man
+83,90c83,87
+< Specifies the Wharf window location and/or size. If the size is not
+< specified, Wharf will auto-size itself in a reasonable manner.  The
+< geometry is a standard X11 window geometry specification; if you
+< change it, you may wish to adjust the arguments passed to AfterStep's
+< Maximize command so that maximized windows will avoid covering the
+< Wharf.  The geometry is pre-set in the NEXTSTEP(tm) style section for
+< a consistent look and feel with NEXTSTEP(tm).  Secondary Wharf
+< invocations from links may have their own geometry.
+---
+> Specifies the Wharf window location and/or size. If the size is
+> not specified, Wharf will auto-size itself in a reasonable manner.
+> The geometry is a standard X11 window geometry specification.  This option is
+> pre-set in the NEXTSTEP(tm) style section for a consistent look and feel with NEXTSTEP(tm).
+> Secondary Wharf invocations from links may have their own geometry.

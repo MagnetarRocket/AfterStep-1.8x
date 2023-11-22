@@ -1,0 +1,131 @@
+From rim.caldera.com!majordom-afterstep-owner-ciguylhem=barberouge.linux.lmm.com@remcomp.fr Thu Aug 13 18:03:18 1998
+Return-Path: <rim.caldera.com!majordom-afterstep-owner-ciguylhem=barberouge.linux.lmm.com@remcomp.fr>
+Delivered-To: guylhem-mailinglists@danmark.barberouge.linux.lmm.com
+Received: (qmail 3483 invoked by uid 102); 13 Aug 1998 18:03:12 -0000
+Delivered-To: ciguylhem@barberouge.linux.lmm.com
+Received: (qmail 3444 invoked by uid 10); 13 Aug 1998 18:03:07 -0000
+Received: from remcomp.fr (uucp@localhost)
+	by lmm.com (8.8.7/8.8.7) with UUCP id SAA08945
+	for barberouge.linux.lmm.com!ciguylhem; Thu, 13 Aug 1998 18:04:52 +0200
+Received: (qmail 1283 invoked by uid 87); 13 Aug 1998 14:25:23 -0000
+Delivered-To: majordom-afterstep@rim.caldera.com
+Received: (qmail 1272 invoked by uid 87); 13 Aug 1998 14:25:21 -0000
+Received: (qmail 1264 invoked from network); 13 Aug 1998 14:25:19 -0000
+Received: from prodigy.jilted.com (pre@194.128.124.22)
+  by rim.caldera.com with SMTP; 13 Aug 1998 14:25:19 -0000
+Received: from localhost (pre@localhost)
+	by prodigy.jilted.com (8.8.5/8.8.5) with SMTP id PAA08061
+	for <afterstep@linuxcenter.com>; Thu, 13 Aug 1998 15:25:27 +0100
+Date: Thu, 13 Aug 1998 15:25:26 +0100 (BST)
+From: Patrick E <pre@pre.org>
+X-Sender: pre@prodigy.jilted.com
+To: afterstep@linuxcenter.com
+Subject: Re: xmkmf can't find files
+In-Reply-To: <19980812174347.47308@barberouge>
+Message-ID: <Pine.LNX.3.96.980813151643.8039A-100000@prodigy.jilted.com>
+MIME-Version: 1.0
+Content-Type: TEXT/PLAIN; charset=US-ASCII
+Sender: majordom-afterstep-owner@linuxcenter.com
+Precedence: bulk
+Reply-To: afterstep@linuxcenter.com
+Status: RO
+Content-Length: 2995
+Lines: 96
+
+On Wed, 12 Aug 1998, Guylhem Aznar wrote:
+
+> On Tue, Aug 11, 1998 at 09:55:30PM +0100, Patrick E wrote:
+> > One suggestion though - could a bit of "inheritance" be added in
+> > the configure script so it does the following
+> > * Users GNUstep path (~/GNUstep/): ~/.gnustep/
+> > * Users GNUstep Library path (~/.gnustep/Library):
+> > * Users AfterStep path (~/.gnustep/Library/AfterStep):
+> > rather than having to give the whole thing again each time (it
+> > wraps off the edge of the screen, and backspacing gets a bit
+> > fruity). Should be a small tweak...
+> > 
+> It's just a matter of shell script (in autoconf/configure.in), feel free
+> to enhance it.
+> 
+I make no apologies for how ugly this is. Or any claims that it
+works, for that matter, though I have tested it out and it seems
+to be okay.
+I hate leaving things to chance, so it can spot whether a full
+path is given, whether a path within the home dir is given, or
+whether it's just a directory to plonk on the end. Not very clear
+to the end user, so it deals with assumptions.
+
+Anyway...
+Made against the stock pre7 AfterStep-current/autoconf/configure.in
+
+--- configure.in.old	Thu Aug  6 16:53:14 1998
++++ configure.in	Thu Aug 13 15:09:55 1998
+@@ -71,9 +71,9 @@
+ mod_dir="/usr/local/bin"
+ man_dir="/usr/local/man/man1"
+ share_dir="/usr/local/share/afterstep"
+-gnustep="~/GNUstep/"
+-gnusteplib="~/GNUstep/Library"
+-after_dir="~/GNUstep/Library/AfterStep"
++gnustep="~/GNUstep"
++gnusteplib="Library"
++after_dir="AfterStep"
+ xpm_dir="/usr/X11R6/include/X11/pixmaps"
+ bpm_dir="/usr/X11R6/include/X11/bitmaps"
+ ximageloader="xli -onroot -quiet -colors 20"
+@@ -158,16 +158,34 @@
+   gnustep=${retval}
+  fi
+ 
+- echo -n "* Users GNUstep Library path (${gnusteplib}): "
++ echo -n "* Users GNUstep Library path (${gnustep}/${gnusteplib}): "
+  read retval
+  if ! test "${retval}" = "" ; then
+-  gnusteplib=${retval}
+- fi
+-
+- echo -n "* Users AfterStep path (${after_dir}): "
+- read retval
+- if ! test "${retval}" = "" ; then
+-  after_dir=${retval}
++    case ${retval} in
++       ${gnustep}/* | /* | ~/* | \~/* )
++          gnusteplib=${retval}
++          ;;
++       * )
++          gnusteplib=${gnustep}/${retval}
++          ;;
++    esac
++ else
++   gnusteplib=${gnustep}/${gnusteplib}
++ fi
++
++ echo -n "* Users AfterStep path (${gnusteplib}/${after_dir}): "
++ read retval
++ if ! test "${retval}" = "" ; then
++    case ${retval} in
++       ${gnusteplib}/* | /* | ~/* | \~/* )
++          after_dir=${retval}
++          ;;
++       * )
++          after_dir=${gnusteplib}/${retval}
++          ;;
++    esac
++ else
++   after_dir=${gnusteplib}/${after_dir}
+  fi
+ 
+  echo -n "* Minimum XPM pixmaps path (${xpm_dir}): "
+
+-- 
+Patrick E - Yamaha killer, code spooner and lord of the flies
+pre at pre dot org                            www.pre.org/pre
+Opinions expressed herein may not even be those of the author
+
+
+--
+   WWW:   http://www.afterstep.org/
+   FTP:   ftp://ftp.afterstep.org/
+   MAIL:  http://www.caldera.com/linuxcenter/forums/afterstep.html
+
+

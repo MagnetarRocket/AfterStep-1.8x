@@ -1,0 +1,130 @@
+From: Tilman Vogel <Tilman.Vogel@altavista.net>
+
+This is a multi-part message in MIME format.
+--------------A756393CFE9F5F80CBF4FAA4
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+As I ran into some problems with the session management (.windows) I
+changed part of the responsible code. I attached my changes as a
+diff-patch to this message. I did my changes to Version 1.4 but I looked
+into 1.4.4 and the code where my changes take place is unchanged.
+
+My changes are:
+1. Arguments with spaces in them are quoted within single quotes.
+2. Unmapped windows are saved with the "-iconic" option.
+3. "-iconic" options are removed from the original arguments (as it is
+with -geometry)
+4. The new "-iconic" and "-geometry"-options are saved before any other
+options which solves problems with programs like Eterm (think of "Eterm
+-e su -", "-e" must be the last option on the command line)
+
+Furthermore I have written two scripts (one in Perl, one in "bash"),
+which do some additional cleanup of the .windows-File. I need this
+because:
+1. My XDM opens a xconsole which AfterStep should not open always again.
+2. Eterm wants -g instead of -geometry and -i instead of -iconic
+3. Netscapes "main window" has a crapy geometry (1x1+0+0)
+4. I want don't want all them applications being started in the
+~/GNUstep/... directory, but in my homedir.
+
+These scripts should reside in the ~/GNUstep/Library/AfterStep/
+directory and reopen should be invoked in autoexec.* instead of sh
+.windows .
+
+--------------A756393CFE9F5F80CBF4FAA4
+Content-Type: text/plain; charset=us-ascii; name="AfterStep-session.patch"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: inline; filename="AfterStep-session.patch"
+
+--- AfterStep.orig/src/afterstep.c	Mon Apr  6 22:55:19 1998
++++ AfterStep/src/afterstep.c	Thu Apr  9 19:18:00 1998
+@@ -588,6 +588,7 @@
+     Window win, r;
+     int client_argc;
+     char **client_argv = NULL;
++    XWindowAttributes wAttr;
+ 
+     win = XmuClientWindow(dpy, fwin);
+     if (win == None)
+@@ -595,8 +596,9 @@
+ 
+     if (!XGetGeometry(dpy, win, &r, &x, &y, &w, &h, &b, &b))
+ 	return;
+-    if (!XGetGeometry(dpy, fwin, &r, &x, &y, &b, &b, &b, &b))
++    if (!XGetWindowAttributes(dpy, fwin, &wAttr))
+ 	return;
++    x=wAttr.x; y=wAttr.y;
+     XGetWMClientMachine(dpy, win, &tp);
+     if (tp.value == NULL || tp.encoding != XA_STRING || tp.format != 8)
+ 	return;
+@@ -627,11 +629,20 @@
+ 	    if (i <= client_argc - 1) {
+ 		i++;
+ 	    }
++	} else if (strcmp(client_argv[i], "-iconic") == 0) {
+ 	} else {
+-	    fprintf(savewindow_fd, "%s ", client_argv[i]);
++	    if( ! strchr( client_argv[i], ' ' ) )
++		fprintf(savewindow_fd, "%s ", client_argv[i]);
++	    else
++		fprintf(savewindow_fd, "'%s' ", client_argv[i]);
++	    if(i==0)
++		{
++		fprintf(savewindow_fd, "-geometry %dx%d+%d+%d ", w, h, x, y);
++		if(wAttr.map_state == IsUnmapped)
++		    fprintf(savewindow_fd, "-iconic ");
++		}
+ 	}
+     }
+-    fprintf(savewindow_fd, "-geometry %dx%d+%d+%d ", w, h, x, y);
+     XFreeStringList(client_argv);
+ }
+ 
+
+--------------A756393CFE9F5F80CBF4FAA4
+Content-Type: text/plain; charset=us-ascii; name="reopen"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: inline; filename="reopen"
+
+#! /bin/bash
+# Clean up .windows
+cd ~/GNUstep/Library/AfterStep/
+
+rm .windows.orig
+cp .windows .windows.orig
+./cleanup <.windows.orig >.windows
+sh .windows
+
+--------------A756393CFE9F5F80CBF4FAA4
+Content-Type: text/plain; charset=us-ascii; name="cleanup"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: inline; filename="cleanup"
+
+#! /usr/bin/perl -w
+# Clean up .windows
+
+# Let all begin at home
+print "cd ~\n";
+
+while(<STDIN>)
+{
+    # Remove xconsole since it is "always" there
+    s/.*xconsole.*//;
+    # Kill weird geometries
+    s/-geometry 1x1\+0\+0 //g;
+
+    # Convert to Eterm's weird geometry option
+    if(/Eterm/)
+    {
+	s/-g \S+ //g;
+	s/-i //g;
+	s/-geometry/-g/;
+	s/-iconic/-i/;
+    }
+    
+    print if ! /^$/;
+}
+
+--------------A756393CFE9F5F80CBF4FAA4--
+

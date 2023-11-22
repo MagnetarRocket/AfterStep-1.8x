@@ -1,0 +1,35 @@
+From: Michael Barnes <mibarnes@vaview7.vavu.vt.edu>
+Subject: Re: config questions
+
+ackkkkkk, get wxpaste from windowmaker src and do this:
+
+echo '
+#!/bin/zsh
+
+location=`wxpaste`;
+netscape=/usr/local/netscape/netscape
+
+export LD_LIBRARY_PATH=/lib-old
+#export LD_PRELOAD=/usr/local/netscape/lib/gnumalloc.glibc.so
+#export NPX_PLUGIN_PATH=$HOME/.netscape/noplugins
+
+#ldd $netscape
+#exit
+
+proto=$location[(ws:/:)0]
+
+case "$proto" in
+    file:*|http:*|ftp:*) ( $netscape -noraise -remote "openURL($location)"
+    || $netscape $location ) &; exit ;;
+    esac
+
+    $netscape $* &' > /usr/local/bin/nets
+
+chmod a+x /usr/local/bin/nets
+
+use nets instead of netscape (ie, in menues, the wharf, etc) then whenever
+you dblclick on an url life is good.
+
+IE4.0 active desktop eat your heart out.......
+
+Mike

@@ -1,0 +1,1597 @@
+diff -c -r fvwm-2.0.46/fvwm/add_window.c fvwm-2.0.46-patched/fvwm/add_window.c
+*** fvwm-2.0.46/fvwm/add_window.c	Sun Aug 31 09:23:39 1997
+--- fvwm-2.0.46-patched/fvwm/add_window.c	Mon Sep 22 22:00:03 1997
+***************
+*** 103,108 ****
+--- 103,112 ----
+  #endif
+    unsigned long tflag;
+    int Desk, border_width, resize_width;
++ /*  RBW - 08/31/1997  */
++   int PageX = 0, PageY = 0;
++   int tmpno1 = -1, tmpno2 = -1, tmpno3 = -1, spargs = 0;
++ /**/
+    extern Bool NeedToResizeToo;
+    extern FvwmWindow *colormap_win;
+    char *forecolor = NULL, *backcolor = NULL;
+***************
+*** 203,208 ****
+--- 207,215 ----
+  		     &decor,
+  #endif
+                       &Desk,
++ /*  RBW - 08/31/1997  */
++                      &PageX, &PageY,
++ /**/
+  		     &border_width, &resize_width,
+                       &forecolor,&backcolor,&tmp_win->buttons, 
+  		     tmp_win->IconBox,&(tmp_win->BoxFillMethod));
+***************
+*** 272,284 ****
+        status = XrmGetResource (db, "fvwm.desk", "Fvwm.Desk", &str_type, &rm_value);
+        if ((status == True) && (rm_value.size != 0)) {
+            Desk = atoi(rm_value.addr);
+  	  tflag |= STARTSONDESK_FLAG;
+        }
+        XrmDestroyDatabase (db);
+        db = NULL;
+    }
+  
+!   if(!PlaceWindow(tmp_win, tflag, Desk))
+      return NULL;
+  
+    /*
+--- 279,331 ----
+        status = XrmGetResource (db, "fvwm.desk", "Fvwm.Desk", &str_type, &rm_value);
+        if ((status == True) && (rm_value.size != 0)) {
+            Desk = atoi(rm_value.addr);
++ /*  RBW - 08/31/1997  */
++           Desk++;
++ /**/
+  	  tflag |= STARTSONDESK_FLAG;
+        }
++ /*  RBW - 08/31/1997  */
++       /*  We may insert the GetResource thing for page later...OK, let's do it.  */
++       status = XrmGetResource (db, "fvwm.page", "Fvwm.Page", &str_type, &rm_value);
++       if ((status == True) && (rm_value.size != 0)) {
++           spargs = sscanf (rm_value.addr, "%d %d %d", &tmpno1, &tmpno2, &tmpno3);
++           switch (spargs)
++             {
++             case 1:
++               {
++                 tflag |= STARTSONDESK_FLAG;
++                 Desk   =  tmpno1 + 1;
++                 break;
++               }
++             case 2:
++               {
++                 tflag |= STARTSONDESK_FLAG;
++                 PageX  =  tmpno1 + 1;
++                 PageY  =  tmpno2 + 1;
++                 break;
++               }
++             case 3:
++               {
++                 tflag |= STARTSONDESK_FLAG;
++                 Desk   =  tmpno1 + 1;
++                 PageX  =  tmpno2 + 1;
++                 PageY  =  tmpno3 + 1;
++                 break;
++               }
++             default:
++               {
++                 break;
++               }
++             }
++       }
++ /**/
+        XrmDestroyDatabase (db);
+        db = NULL;
+    }
+  
+! /*  RBW - 08/31/1997  */
+!   if(!PlaceWindow(tmp_win, tflag, Desk, PageX, PageY))
+! /**/
+      return NULL;
+  
+    /*
+***************
+*** 967,972 ****
+--- 1014,1020 ----
+   *	class	- a pointer to the class to look for
+   *
+   ***********************************************************************/
++ /*  RBW - 08/31/1997  */
+  unsigned long LookInList(name_list *list, char *name, XClassHint *class, 
+  			 char **value,
+  #ifdef MINI_ICONS
+***************
+*** 975,981 ****
+  #ifdef USEDECOR
+  			 char **decor,
+  #endif
+!                          int *Desk, int *border_width,
+  			 int *resize_width, char **forecolor, char **backcolor,
+                           unsigned long * buttons, int *IconBox,
+                           int *BoxFillMethod)
+--- 1023,1034 ----
+  #ifdef USEDECOR
+  			 char **decor,
+  #endif
+! /*  RBW - 08/31/1997  */
+!                          int *Desk,
+!                          int *PageX,
+!                          int *PageY,
+! /**/
+!                          int *border_width,
+  			 int *resize_width, char **forecolor, char **backcolor,
+                           unsigned long * buttons, int *IconBox,
+                           int *BoxFillMethod)
+***************
+*** 1018,1024 ****
+  	      if (nptr->Decor != NULL) *decor = nptr->Decor;
+  #endif
+  	      if(nptr->off_flags & STARTSONDESK_FLAG)
+! 		*Desk = nptr->Desk;
+  	      if(nptr->off_flags & BW_FLAG)
+  		*border_width = nptr->border_width;
+  	      if(nptr->off_flags & FORE_COLOR_FLAG)
+--- 1071,1083 ----
+  	      if (nptr->Decor != NULL) *decor = nptr->Decor;
+  #endif
+  	      if(nptr->off_flags & STARTSONDESK_FLAG)
+! /*  RBW - 08/31/1997  */
+!                 {
+! 		  *Desk  = nptr->Desk;
+!                   *PageX = nptr->PageX;
+!                   *PageY = nptr->PageY;
+!                 }
+! /**/
+  	      if(nptr->off_flags & BW_FLAG)
+  		*border_width = nptr->border_width;
+  	      if(nptr->off_flags & FORE_COLOR_FLAG)
+***************
+*** 1053,1059 ****
+  	      if (nptr->Decor != NULL) *decor = nptr->Decor;
+  #endif
+  	      if(nptr->off_flags & STARTSONDESK_FLAG)
+! 		*Desk = nptr->Desk;
+  	      if(nptr->off_flags & FORE_COLOR_FLAG)
+  		*forecolor = nptr->ForeColor;
+  	      if(nptr->off_flags & BACK_COLOR_FLAG)
+--- 1112,1124 ----
+  	      if (nptr->Decor != NULL) *decor = nptr->Decor;
+  #endif
+  	      if(nptr->off_flags & STARTSONDESK_FLAG)
+! /*  RBW - 08/31/1997  */
+!                 {
+! 		  *Desk  = nptr->Desk;
+!                   *PageX = nptr->PageX;
+!                   *PageY = nptr->PageY;
+!                 }
+! /**/
+  	      if(nptr->off_flags & FORE_COLOR_FLAG)
+  		*forecolor = nptr->ForeColor;
+  	      if(nptr->off_flags & BACK_COLOR_FLAG)
+***************
+*** 1087,1094 ****
+  #ifdef USEDECOR
+  	  if (nptr->Decor != NULL) *decor = nptr->Decor;
+  #endif
+! 	  if(nptr->off_flags & STARTSONDESK_FLAG)	   
+! 	    *Desk = nptr->Desk;
+  	  if(nptr->off_flags & FORE_COLOR_FLAG)
+  	    *forecolor = nptr->ForeColor;
+  	  if(nptr->off_flags & BACK_COLOR_FLAG)
+--- 1152,1165 ----
+  #ifdef USEDECOR
+  	  if (nptr->Decor != NULL) *decor = nptr->Decor;
+  #endif
+! 	  if(nptr->off_flags & STARTSONDESK_FLAG)
+! /*  RBW - 08/31/1997  */
+!                 {
+! 		  *Desk  = nptr->Desk;
+!                   *PageX = nptr->PageX;
+!                   *PageY = nptr->PageY;
+!                 }
+! /**/
+  	  if(nptr->off_flags & FORE_COLOR_FLAG)
+  	    *forecolor = nptr->ForeColor;
+  	  if(nptr->off_flags & BACK_COLOR_FLAG)
+diff -c -r fvwm-2.0.46/fvwm/builtins.c fvwm-2.0.46-patched/fvwm/builtins.c
+*** fvwm-2.0.46/fvwm/builtins.c	Tue Aug 19 19:41:27 1997
+--- fvwm-2.0.46-patched/fvwm/builtins.c	Mon Sep 22 22:00:00 1997
+***************
+*** 717,723 ****
+  #ifdef USEDECOR
+  		 &junkC,
+  #endif
+! 		 &junkD, &junkD, &junkD, &junkC, &junkC, &junkN,
+  		 BoxJunk,  &method)& STAYSONTOP_FLAG)
+      tmp_win->flags |= ONTOP;
+    KeepOnTop();
+--- 717,725 ----
+  #ifdef USEDECOR
+  		 &junkC,
+  #endif
+! /*  RBW - 08/31/1997  */
+! 		 &junkD, &junkD, &junkD, &junkD, &junkD, &junkC, &junkC, &junkN,
+! /**/
+  		 BoxJunk,  &method)& STAYSONTOP_FLAG)
+      tmp_win->flags |= ONTOP;
+    KeepOnTop();
+***************
+*** 1154,1160 ****
+  #ifdef USEDECOR
+  		   &junkC,
+  #endif
+!                    &junkD,&junkD, &junkD, &junkC,&junkC,&junkN,BoxJunk,
+                     &method)&STAYSONTOP_FLAG)
+        tmp_win->flags |= ONTOP;	    
+      KeepOnTop();
+--- 1156,1164 ----
+  #ifdef USEDECOR
+  		   &junkC,
+  #endif
+! /*  RBW - 08/31/1997  */
+!                    &junkD, &junkD, &junkD,&junkD, &junkD, &junkC,&junkC,&junkN,BoxJunk,
+! /**/
+                     &method)&STAYSONTOP_FLAG)
+        tmp_win->flags |= ONTOP;	    
+      KeepOnTop();
+***************
+*** 3319,3324 ****
+--- 3323,3361 ----
+      else if (StrEquals(opt,"MOUSEFOCUSCLICKRAISES"))
+      {
+        Scr.MouseFocusClickRaises = True;
++     }
++          /*  RBW - 08/31/1997  */
++     else if (StrEquals(opt,"STARTSONPAGEMODIFIESUSPOSITION"))
++     {
++       Scr.ModifyUSP = True;
++     }
++     else if (StrEquals(opt,"STARTSONPAGEHONORSUSPOSITION"))
++     {
++       Scr.ModifyUSP = False;
++     }
++     else if (StrEquals(opt,"CAPTUREHONORSSTARTSONPAGE"))
++     {
++       Scr.CaptureHonorsStartsOnPage = True;
++     }
++     else if (StrEquals(opt,"CAPTUREIGNORESSTARTSONPAGE"))
++     {
++       Scr.CaptureHonorsStartsOnPage = False;
++     }
++     else if (StrEquals(opt,"RECAPTUREHONORSSTARTSONPAGE"))
++     {
++       Scr.RecaptureHonorsStartsOnPage = True;
++     }
++     else if (StrEquals(opt,"RECAPTUREIGNORESSTARTSONPAGE"))
++     {
++       Scr.RecaptureHonorsStartsOnPage = False;
++     }
++     else if (StrEquals(opt,"ACTIVEPLACEMENTHONORSSTARTSONPAGE"))
++     {
++       Scr.ActivePlacementHonorsStartsOnPage = True;
++     }
++     else if (StrEquals(opt,"ACTIVEPLACEMENTIGNORESSTARTSONPAGE"))
++     {
++       Scr.ActivePlacementHonorsStartsOnPage = False;
+      }
+      else
+        fvwm_msg(ERR,"GlobalOpts","Unknown Global Option '%s'",opt);
+diff -c -r fvwm-2.0.46/fvwm/fvwm.c fvwm-2.0.46-patched/fvwm/fvwm.c
+*** fvwm-2.0.46/fvwm/fvwm.c	Mon Aug  4 16:53:32 1997
+--- fvwm-2.0.46-patched/fvwm/fvwm.c	Mon Sep 22 21:59:58 1997
+***************
+*** 1243,1248 ****
+--- 1243,1254 ----
+    Scr.ClickToFocusRaises = True;
+    Scr.MouseFocusClickRaises = False;
+  
++ /*  RBW - 08/31/1997    */
++   Scr.ModifyUSP                          =  False;
++   Scr.CaptureHonorsStartsOnPage          =  True;
++   Scr.RecaptureHonorsStartsOnPage        =  False;
++   Scr.ActivePlacementHonorsStartsOnPage  =  False;
++ 
+    /* Not the right place for this, should only be called once somewhere .. */
+    InitPictureCMap(dpy,Scr.Root);
+  
+diff -c -r fvwm-2.0.46/fvwm/fvwm.man fvwm-2.0.46-patched/fvwm/fvwm.man
+*** fvwm-2.0.46/fvwm/fvwm.man	Sun Aug 31 09:23:39 1997
+--- fvwm-2.0.46-patched/fvwm/fvwm.man	Mon Sep 22 22:11:52 1997
+***************
+*** 1065,1075 ****
+  SmartPlacementIsReallySmart/SmartPlacementIsNormal,
+  ClickToFocusDoesntPassClick/ClickToFocusPassesClick,
+  ClickToFocusDoesntRaise/ClickToFocusRaises,
+! MouseFocusClickDoesntRaise/MouseFocusClickRaises
+  .EX
+  GlobalOpts ClickToFocusDoesntPassClick, ClickToFocusDoesntRaise
+  .EE
+  
+  .IP "GotoPage  x y"
+  Moves the desktop viewport to page (x,y).  The upper left page is
+  (0,0), the upper right is (M,0), where M is one less than the current
+--- 1065,1107 ----
+  SmartPlacementIsReallySmart/SmartPlacementIsNormal,
+  ClickToFocusDoesntPassClick/ClickToFocusPassesClick,
+  ClickToFocusDoesntRaise/ClickToFocusRaises,
+! MouseFocusClickDoesntRaise/MouseFocusClickRaises,
+! StartsOnPageModifiesUSPosition/StartsOnPageHonorsUSPosition,
+! CaptureHonorsStartsOnPage/CaptureIgnoresStartsOnPage,
+! RecaptureHonorsStartsOnPage/RecaptureIgnoresStartsOnPage,
+! ActivePlacementHonorsStartsOnPage/ActivePlacementIgnoresStartsOnPage
+  .EX
+  GlobalOpts ClickToFocusDoesntPassClick, ClickToFocusDoesntRaise
+  .EE
+  
++ StartsOnPageModifiesUSPosition allows for a window with the StartsOnPage
++ style and a command line geometry argument to have the geometry x and
++ y positions adjusted relative to the page specified in the style.
++ StartsOnPageHonorsUSPosition renders StartsOnPage inoperative for such
++ windows. The default is StartsOnPageHonorsUSPosition.
++ 
++ RecaptureHonorsStartsOnPage causes a window to be placed according to, or
++ revert to, the StartsOnPage desk and page specification on Restart or
++ Recapture. RecaptureIgnoresStartsOnPage causes fvwm to respect the current
++ window position on Restart or Recapture. The default is
++ RecaptureIgnoresStartsOnPage.
++ 
++ CaptureHonorsStartsOnPage causes the initial capture (of an already
++ existing window) at startup to place the window according to the
++ StartsOnPage desk and page specification. CaptureIgnoresStartsOnPage
++ causes fvwm to ignore these settings (including StartsOnDesk) on
++ initial capture. The default is CaptureHonorsStartsOnPage.
++ 
++ ActivePlacementIgnoresStartsOnPage suppresses StartsOnPage or StartsOnDesk
++ placement in the event that both ActivePlacement and SkipMapping are in
++ effect when a window is created. This prevents you from interactively
++ placing a window and then wondering where it disappeared to, because it got
++ placed on a different desk or page. Specify ActivePlacementHonorsStartsOnPage
++ to allow this to happen anyway, which was the old way that StartsOnDesk
++ worked. This has no effect if SkipMapping is not in effect, because fvwm
++ will switch to the proper desk/page to perform interactive placement. The
++ default is ActivePlacementIgnoresStartsOnPage.
++ 
+  .IP "GotoPage  x y"
+  Moves the desktop viewport to page (x,y).  The upper left page is
+  (0,0), the upper right is (M,0), where M is one less than the current
+***************
+*** 1504,1510 ****
+  NoTitle/Title, NoHandles/Handles, WindowListSkip/WindowListHit,
+  CirculateSkip/CirculateHit, StaysOnTop/StaysPut, Sticky/Slippery,
+  StartIconic/StartNormal, Color, ForeColor, BackColor,
+! StartsOnDesk/StartsAnyWhere, IconTitle/NoIconTitle,
+  MWMButtons/FvwmButtons, MWMBorder/FvwmBorder, MWMDecor/NoDecorHint,
+  MWMFunctions/NoFuncHint, HintOverride/NoOverride, NoButton/Button,
+  OLDecor/NoOLDecor, StickyIcon/SlipperyIcon,
+--- 1536,1542 ----
+  NoTitle/Title, NoHandles/Handles, WindowListSkip/WindowListHit,
+  CirculateSkip/CirculateHit, StaysOnTop/StaysPut, Sticky/Slippery,
+  StartIconic/StartNormal, Color, ForeColor, BackColor,
+! StartsOnDesk/StartsOnPage/StartsAnyWhere, IconTitle/NoIconTitle,
+  MWMButtons/FvwmButtons, MWMBorder/FvwmBorder, MWMDecor/NoDecorHint,
+  MWMFunctions/NoFuncHint, HintOverride/NoOverride, NoButton/Button,
+  OLDecor/NoOLDecor, StickyIcon/SlipperyIcon,
+***************
+*** 1541,1546 ****
+--- 1573,1596 ----
+  which the window should be initially placed.  Note that standard Xt
+  programs can also specify this via a resource (e.g. "-xrm '*Desk: 1'").
+  
++ StartsOnPage takes 1, 2, or 3 numeric arguments. If one or three arguments
++ are givem, the first (or only) argument is the desktop number.  If three
++ arguments are given, the 2nd and 3rd arguments identify the x,y page position
++ on the virtual window. If two arguments are given, they specify the page
++ position, and indicate no desk preference. If only one argument is given,
++ StartsOnPage functions exactly like StartsOnDesk. For those standard Xt
++ programs which understand this usage, the starting desk/page can also be
++ specified via a resource (e.g., "-xrm 'Fvwm.Page: 1 0 2'").
++ 
++ StartsOnPage in conjunction with SkipMapping is a useful technique when you
++ want to start an app on some other page and continue with what you were
++ doing, rather than waiting for it to appear. However, there are a few things
++ to be aware of in this version of StartsOnPage.
++ The page position will have no effect if the app was started with a command
++ line geometry argument specifying x,y coordinates, unless you have also
++ specified GlobalOpts StartsOnPageModifiesUSPosition; if you have, the
++ geometry position will be adjusted relative to the target page. 
++ 
+  StaysOnTop makes the window always try to stay on top of the other
+  windows.  This might be handy for clocks or mailboxes that you would
+  always like to be visible.  If the window is explicitly lowered it
+***************
+*** 1595,1601 ****
+  without retyping.  For example: 'Style "rxvt" UseStyle "XTerm"'.
+  
+  SkipMapping tells fvwm not to switch to the desk the window is on when
+! it gets mapped initially (useful with StartsOnDesk).
+  
+  Lenience instructs fvwm to ignore the convention in the ICCCM which
+  states that if an application sets the input field of the wm_hints
+--- 1645,1651 ----
+  without retyping.  For example: 'Style "rxvt" UseStyle "XTerm"'.
+  
+  SkipMapping tells fvwm not to switch to the desk the window is on when
+! it gets mapped initially (useful with StartsOnDesk or StartsOnPage).
+  
+  Lenience instructs fvwm to ignore the convention in the ICCCM which
+  states that if an application sets the input field of the wm_hints
+***************
+*** 1661,1666 ****
+--- 1711,1720 ----
+  
+  Style "Maker"     StartsOnDesk 1
+  Style "signal"    StartsOnDesk 3           
++ 
++ # Fire up Netscape on the second desk, in the middle of my 3x3 virtual
++ # desktop, and don't bother me with it...
++ Style "Netscape*" SkipMapping, StartsOnPage 1 1 1
+  .EE
+  Note that all properties for a window will be OR'ed together.  In the
+  above example "FvwmPager" gets the property StaysOnTop via an exact
+diff -c -r fvwm-2.0.46/fvwm/fvwm2.man fvwm-2.0.46-patched/fvwm/fvwm2.man
+*** fvwm-2.0.46/fvwm/fvwm2.man	Sun Aug 31 09:23:39 1997
+--- fvwm-2.0.46-patched/fvwm/fvwm2.man	Mon Sep 22 22:11:23 1997
+***************
+*** 1065,1075 ****
+  SmartPlacementIsReallySmart/SmartPlacementIsNormal,
+  ClickToFocusDoesntPassClick/ClickToFocusPassesClick,
+  ClickToFocusDoesntRaise/ClickToFocusRaises,
+! MouseFocusClickDoesntRaise/MouseFocusClickRaises
+  .EX
+  GlobalOpts ClickToFocusDoesntPassClick, ClickToFocusDoesntRaise
+  .EE
+  
+  .IP "GotoPage  x y"
+  Moves the desktop viewport to page (x,y).  The upper left page is
+  (0,0), the upper right is (M,0), where M is one less than the current
+--- 1065,1107 ----
+  SmartPlacementIsReallySmart/SmartPlacementIsNormal,
+  ClickToFocusDoesntPassClick/ClickToFocusPassesClick,
+  ClickToFocusDoesntRaise/ClickToFocusRaises,
+! MouseFocusClickDoesntRaise/MouseFocusClickRaises,
+! StartsOnPageModifiesUSPosition/StartsOnPageHonorsUSPosition,
+! CaptureHonorsStartsOnPage/CaptureIgnoresStartsOnPage,
+! RecaptureHonorsStartsOnPage/RecaptureIgnoresStartsOnPage,
+! ActivePlacementHonorsStartsOnPage/ActivePlacementIgnoresStartsOnPage
+  .EX
+  GlobalOpts ClickToFocusDoesntPassClick, ClickToFocusDoesntRaise
+  .EE
+  
++ StartsOnPageModifiesUSPosition allows for a window with the StartsOnPage
++ style and a command line geometry argument to have the geometry x and
++ y positions adjusted relative to the page specified in the style.
++ StartsOnPageHonorsUSPosition renders StartsOnPage inoperative for such
++ windows. The default is StartsOnPageHonorsUSPosition.
++ 
++ RecaptureHonorsStartsOnPage causes a window to be placed according to, or
++ revert to, the StartsOnPage desk and page specification on Restart or
++ Recapture. RecaptureIgnoresStartsOnPage causes fvwm to respect the current
++ window position on Restart or Recapture. The default is
++ RecaptureIgnoresStartsOnPage.
++ 
++ CaptureHonorsStartsOnPage causes the initial capture (of an already
++ existing window) at startup to place the window according to the
++ StartsOnPage desk and page specification. CaptureIgnoresStartsOnPage
++ causes fvwm to ignore these settings (including StartsOnDesk) on
++ initial capture. The default is CaptureHonorsStartsOnPage.
++ 
++ ActivePlacementIgnoresStartsOnPage suppresses StartsOnPage or StartsOnDesk
++ placement in the event that both ActivePlacement and SkipMapping are in
++ effect when a window is created. This prevents you from interactively
++ placing a window and then wondering where it disappeared to, because it got
++ placed on a different desk or page. Specify ActivePlacementHonorsStartsOnPage
++ to allow this to happen anyway, which was the old way that StartsOnDesk
++ worked. This has no effect if SkipMapping is not in effect, because fvwm
++ will switch to the proper desk/page to perform interactive placement. The
++ default is ActivePlacementIgnoresStartsOnPage.
++ 
+  .IP "GotoPage  x y"
+  Moves the desktop viewport to page (x,y).  The upper left page is
+  (0,0), the upper right is (M,0), where M is one less than the current
+***************
+*** 1504,1510 ****
+  NoTitle/Title, NoHandles/Handles, WindowListSkip/WindowListHit,
+  CirculateSkip/CirculateHit, StaysOnTop/StaysPut, Sticky/Slippery,
+  StartIconic/StartNormal, Color, ForeColor, BackColor,
+! StartsOnDesk/StartsAnyWhere, IconTitle/NoIconTitle,
+  MWMButtons/FvwmButtons, MWMBorder/FvwmBorder, MWMDecor/NoDecorHint,
+  MWMFunctions/NoFuncHint, HintOverride/NoOverride, NoButton/Button,
+  OLDecor/NoOLDecor, StickyIcon/SlipperyIcon,
+--- 1536,1542 ----
+  NoTitle/Title, NoHandles/Handles, WindowListSkip/WindowListHit,
+  CirculateSkip/CirculateHit, StaysOnTop/StaysPut, Sticky/Slippery,
+  StartIconic/StartNormal, Color, ForeColor, BackColor,
+! StartsOnDesk/StartsOnPage/StartsAnyWhere, IconTitle/NoIconTitle,
+  MWMButtons/FvwmButtons, MWMBorder/FvwmBorder, MWMDecor/NoDecorHint,
+  MWMFunctions/NoFuncHint, HintOverride/NoOverride, NoButton/Button,
+  OLDecor/NoOLDecor, StickyIcon/SlipperyIcon,
+***************
+*** 1541,1546 ****
+--- 1573,1596 ----
+  which the window should be initially placed.  Note that standard Xt
+  programs can also specify this via a resource (e.g. "-xrm '*Desk: 1'").
+  
++ StartsOnPage takes 1, 2, or 3 numeric arguments. If one or three arguments
++ are givem, the first (or only) argument is the desktop number.  If three
++ arguments are given, the 2nd and 3rd arguments identify the x,y page position
++ on the virtual window. If two arguments are given, they specify the page
++ position, and indicate no desk preference. If only one argument is given,
++ StartsOnPage functions exactly like StartsOnDesk. For those standard Xt
++ programs which understand this usage, the starting desk/page can also be
++ specified via a resource (e.g., "-xrm 'Fvwm.Page: 1 0 2'").
++ 
++ StartsOnPage in conjunction with SkipMapping is a useful technique when you
++ want to start an app on some other page and continue with what you were
++ doing, rather than waiting for it to appear. However, there are a few things
++ to be aware of in this version of StartsOnPage.
++ The page position will have no effect if the app was started with a command
++ line geometry argument specifying x,y coordinates, unless you have also
++ specified GlobalOpts StartsOnPageModifiesUSPosition; if you have, the
++ geometry position will be adjusted relative to the target page. 
++ 
+  StaysOnTop makes the window always try to stay on top of the other
+  windows.  This might be handy for clocks or mailboxes that you would
+  always like to be visible.  If the window is explicitly lowered it
+***************
+*** 1595,1601 ****
+  without retyping.  For example: 'Style "rxvt" UseStyle "XTerm"'.
+  
+  SkipMapping tells fvwm not to switch to the desk the window is on when
+! it gets mapped initially (useful with StartsOnDesk).
+  
+  Lenience instructs fvwm to ignore the convention in the ICCCM which
+  states that if an application sets the input field of the wm_hints
+--- 1645,1651 ----
+  without retyping.  For example: 'Style "rxvt" UseStyle "XTerm"'.
+  
+  SkipMapping tells fvwm not to switch to the desk the window is on when
+! it gets mapped initially (useful with StartsOnDesk or StartsOnPage).
+  
+  Lenience instructs fvwm to ignore the convention in the ICCCM which
+  states that if an application sets the input field of the wm_hints
+***************
+*** 1661,1666 ****
+--- 1711,1720 ----
+  
+  Style "Maker"     StartsOnDesk 1
+  Style "signal"    StartsOnDesk 3           
++ 
++ # Fire up Netscape on the second desk, in the middle of my 3x3 virtual
++ # desktop, and don't bother me with it...
++ Style "Netscape*" SkipMapping, StartsOnPage 1 1 1
+  .EE
+  Note that all properties for a window will be OR'ed together.  In the
+  above example "FvwmPager" gets the property StaysOnTop via an exact
+diff -c -r fvwm-2.0.46/fvwm/misc.h fvwm-2.0.46-patched/fvwm/misc.h
+*** fvwm-2.0.46/fvwm/misc.h	Sun Aug 31 09:23:39 1997
+--- fvwm-2.0.46-patched/fvwm/misc.h	Mon Sep 22 22:00:02 1997
+***************
+*** 27,32 ****
+--- 27,36 ----
+    char *Decor;
+  #endif
+    int Desk;                        /* Desktop number */
++ /* RBW - 08/31/1997 - page x,y numbers */
++   int PageX;
++   int PageY;
++ /**/
+    unsigned long on_flags; 
+    unsigned long off_flags; 
+    int border_width;
+***************
+*** 138,144 ****
+  #ifdef USEDECOR
+  				char **decor,
+  #endif
+!                                 int *Desk, int *bw, int *nobw,
+  				char **forecolor, char **backcolor, 
+                                  unsigned long * buttons, int *IconBox, 
+  				int *BoxFillMethod);
+--- 142,149 ----
+  #ifdef USEDECOR
+  				char **decor,
+  #endif
+!                                 int *Desk, int *PageX, int *PageY,  /*  RBW - 08/31/1997  */
+!                                 int *bw, int *nobw,
+  				char **forecolor, char **backcolor, 
+                                  unsigned long * buttons, int *IconBox, 
+  				int *BoxFillMethod);
+***************
+*** 254,260 ****
+  extern void       GetXPMFile(FvwmWindow *tmp_win);
+  extern void       GetIconWindow(FvwmWindow *tmp_win);
+  extern void       GetIconBitmap(FvwmWindow *tmp_win);
+! extern void SmartPlacement(FvwmWindow *t, int width, int height,int *x,int *y);
+  extern void usage(void);
+  void Broadcast(unsigned long event_type, unsigned long num_datum,
+  	       unsigned long data1, unsigned long data2, 
+--- 259,267 ----
+  extern void       GetXPMFile(FvwmWindow *tmp_win);
+  extern void       GetIconWindow(FvwmWindow *tmp_win);
+  extern void       GetIconBitmap(FvwmWindow *tmp_win);
+! /*  RBW - 08/31/1997  */
+! extern int SmartPlacement(FvwmWindow *t, int width, int height,int *x,int *y, int pdeltax, int pdeltay);
+! /**/
+  extern void usage(void);
+  void Broadcast(unsigned long event_type, unsigned long num_datum,
+  	       unsigned long data1, unsigned long data2, 
+***************
+*** 298,304 ****
+  void WaitForButtonsUp(void);
+  void FocusOn(FvwmWindow *t,int DeIconifyOnly);
+  void WarpOn(FvwmWindow *t,int warp_x, int x_unit, int warp_y, int y_unit);
+! Bool PlaceWindow(FvwmWindow *tmp_win, unsigned long flags,int Desk);
+  void free_window_names (FvwmWindow *tmp, Bool nukename, Bool nukeicon);
+  
+  int do_menu (MenuRoot *menu,int style);
+--- 305,313 ----
+  void WaitForButtonsUp(void);
+  void FocusOn(FvwmWindow *t,int DeIconifyOnly);
+  void WarpOn(FvwmWindow *t,int warp_x, int x_unit, int warp_y, int y_unit);
+! /*  RBW - 08/31/1997  */
+! Bool PlaceWindow(FvwmWindow *tmp_win, unsigned long flags,
+!                  int Desk, int PageX, int PageY);
+  void free_window_names (FvwmWindow *tmp, Bool nukename, Bool nukeicon);
+  
+  int do_menu (MenuRoot *menu,int style);
+***************
+*** 319,325 ****
+  	       char *decor,
+  #endif
+                 unsigned long off_flags, 
+! 	       unsigned long on_flags, int desk,int bw, int nobw, 
+  	       char *forecolor, char *backcolor,
+                 unsigned long off_buttons, unsigned long on_buttons,
+  	       int *IconBox, int BoxFillMethod);
+--- 328,336 ----
+  	       char *decor,
+  #endif
+                 unsigned long off_flags, 
+! 	       unsigned long on_flags,
+! 	       int desk, int pagex, int pagey,  /*  RBW - 08/31/1997  */
+! 	       int bw, int nobw, 
+  	       char *forecolor, char *backcolor,
+                 unsigned long off_buttons, unsigned long on_buttons,
+  	       int *IconBox, int BoxFillMethod);
+diff -c -r fvwm-2.0.46/fvwm/placement.c fvwm-2.0.46-patched/fvwm/placement.c
+*** fvwm-2.0.46/fvwm/placement.c	Sun Aug 31 09:23:39 1997
+--- fvwm-2.0.46-patched/fvwm/placement.c	Mon Sep 22 22:00:04 1997
+***************
+*** 28,37 ****
+  #define MAX(A,B) ((A)>(B)? (A):(B))
+  #endif
+  
+! int get_next_x(FvwmWindow *t, int x, int y);
+! int get_next_y(FvwmWindow *t, int y);
+! int test_fit(FvwmWindow *t, int test_x, int test_y, int aoimin);
+! void CleverPlacement(FvwmWindow *t, int *x, int *y);
+  
+  /* The following factors represent the amount of area that these types of
+   * windows are counted as.  For example, by default the area of ONTOP windows
+--- 28,39 ----
+  #define MAX(A,B) ((A)>(B)? (A):(B))
+  #endif
+  
+! /*  RBW - 08/31/1997  */
+! int get_next_x(FvwmWindow *t, int x, int y, int pdeltax, int pdeltay);
+! int get_next_y(FvwmWindow *t, int y, int pdeltay);
+! int test_fit(FvwmWindow *t, int test_x, int test_y, int aoimin, int pdeltax, int pdeltay);
+! void CleverPlacement(FvwmWindow *t, int *x, int *y, int pdeltax, int pdeltay);
+! /**/
+  
+  /* The following factors represent the amount of area that these types of
+   * windows are counted as.  For example, by default the area of ONTOP windows
+***************
+*** 52,59 ****
+  #define AVOIDICON 10    /*  Try hard no to place windows over icons */
+  #endif
+  
+! void SmartPlacement(FvwmWindow *t, int width, int height, int *x, int *y)
+  {
+    int temp_h,temp_w;
+    int test_x = 0,test_y = 0;
+    int loc_ok = False, tw,tx,ty,th;
+--- 54,74 ----
+  #define AVOIDICON 10    /*  Try hard no to place windows over icons */
+  #endif
+  
+! /*  RBW - 08/31/1997  */
+! int SmartPlacement(FvwmWindow *t, 
+!                     int width, 
+!                     int height, 
+!                     int *x, 
+!                     int *y,
+!                     int pdeltax,
+!                     int pdeltay)
+  {
++   int PageBottom    =  Scr.MyDisplayHeight - pdeltay;
++   int PageRight     =  Scr.MyDisplayWidth - pdeltax;
++   int PageTop       =  0 - pdeltay;
++   int PageLeft      =  0 - pdeltax;
++   int rc            =  True;
++ /**/
+    int temp_h,temp_w;
+    int test_x = 0,test_y = 0;
+    int loc_ok = False, tw,tx,ty,th;
+***************
+*** 61,83 ****
+  
+    if (Scr.SmartPlacementIsClever) /* call clever placement instead? */
+    {
+!     CleverPlacement(t,x,y);
+!     return;
+    }
+  
+    temp_h = height;
+    temp_w = width;
+        
+!   while(((test_y + temp_h) < (Scr.MyDisplayHeight))&&(!loc_ok))
+    {
+!     test_x = 0;
+!     while(((test_x + temp_w) < (Scr.MyDisplayWidth))&&(!loc_ok))
+      {
+        loc_ok = True;
+        test_window = Scr.FvwmRoot.next;
+        while((test_window != (FvwmWindow *)0)&&(loc_ok == True))
+        {	
+!         if(test_window->Desk == Scr.CurrentDesk)
+          {
+  #ifndef NO_STUBBORN_PLACEMENT
+            if((test_window->flags & ICONIFIED)&&
+--- 76,105 ----
+  
+    if (Scr.SmartPlacementIsClever) /* call clever placement instead? */
+    {
+! /*  RBW - 08/31/1997  */
+!     CleverPlacement(t,x,y,pdeltax,pdeltay);
+! /**/
+!     return rc;
+    }
++ /*  RBW - 08/31/1997  */
++ test_x = PageLeft;
++ test_y = PageTop;
++ /**/
+  
+    temp_h = height;
+    temp_w = width;
+        
+! /*  RBW - 08/31/1997  */
+!   while(((test_y + temp_h) < (PageBottom))&&(!loc_ok))
+    {
+!     test_x = PageLeft;
+!     while(((test_x + temp_w) < (PageRight))&&(!loc_ok))
+      {
+        loc_ok = True;
+        test_window = Scr.FvwmRoot.next;
+        while((test_window != (FvwmWindow *)0)&&(loc_ok == True))
+        {	
+!         if(test_window->Desk == t->Desk)
+          {
+  #ifndef NO_STUBBORN_PLACEMENT
+            if((test_window->flags & ICONIFIED)&&
+***************
+*** 90,96 ****
+                test_window->icon_w_height;
+              tx = test_window->icon_x_loc;
+              ty = test_window->icon_y_loc;
+!             
+              if((tx<(test_x+width))&&((tx + tw) > test_x)&&
+                 (ty<(test_y+height))&&((ty + th)>test_y))
+              {
+--- 112,118 ----
+                test_window->icon_w_height;
+              tx = test_window->icon_x_loc;
+              ty = test_window->icon_y_loc;
+! 
+              if((tx<(test_x+width))&&((tx + tw) > test_x)&&
+                 (ty<(test_y+height))&&((ty + th)>test_y))
+              {
+***************
+*** 121,132 ****
+    }
+    if(loc_ok == False)
+    {
+      *x = -1;
+      *y = -1;
+!     return;
+    }
+    *x = test_x;
+    *y = test_y;
+  }
+  
+  
+--- 143,159 ----
+    }
+    if(loc_ok == False)
+    {
++ /*
+      *x = -1;
+      *y = -1;
+! */
+!     rc  =  False;
+!     return rc;
+    }
+    *x = test_x;
+    *y = test_y;
++   return rc;
++ 
+  }
+  
+  
+***************
+*** 135,148 ****
+   * of interference with other windows.  If it can place a window without any
+   * interference, fine.  Otherwise, it places it so that the area of of
+   * interference between the new window and the other windows is minimized */
+! void CleverPlacement(FvwmWindow *t, int *x, int *y)
+  {
+    int test_x = 0,test_y = 0;
+    int xbest, ybest;
+    int aoi, aoimin;       /* area of interference */
+    int dummy = 0;
+!   
+!   aoi = aoimin = test_fit(t, test_x, test_y, -1);
+    xbest = test_x;
+    ybest = test_y;
+  
+--- 162,184 ----
+   * of interference with other windows.  If it can place a window without any
+   * interference, fine.  Otherwise, it places it so that the area of of
+   * interference between the new window and the other windows is minimized */
+! /*  RBW - 08/31/1997  */
+! void CleverPlacement(FvwmWindow *t, int *x, int *y, int pdeltax, int pdeltay)
+  {
++ /**/
+    int test_x = 0,test_y = 0;
+    int xbest, ybest;
+    int aoi, aoimin;       /* area of interference */
+    int dummy = 0;
+!  
+! /*  RBW - 08/31/1997  */
+!   int PageTop       =  0 - pdeltay;
+!   int PageLeft      =  0 - pdeltax;
+! 
+!   test_x -= PageLeft;
+!   test_y -= PageTop;
+! /**/
+!   aoi = aoimin = test_fit(t, test_x, test_y, -1, pdeltax, pdeltay);
+    xbest = test_x;
+    ybest = test_y;
+  
+***************
+*** 150,163 ****
+    {
+      if(aoi > 0) /* Windows interfere.  Try next x. */
+      {
+!       test_x = get_next_x(t, test_x, test_y);
+      }
+      else /* Out of room in x direction. Try next y. Reset x.*/
+      {
+!       test_x = 0;
+!       test_y = get_next_y(t, test_y);
+      }
+!     aoi = test_fit(t, test_x, test_y, aoimin);
+      if((aoi >= 0) && (aoi < aoimin))
+      {
+        xbest = test_x;
+--- 186,199 ----
+    {
+      if(aoi > 0) /* Windows interfere.  Try next x. */
+      {
+!       test_x = get_next_x(t, test_x, test_y, pdeltax, pdeltay);
+      }
+      else /* Out of room in x direction. Try next y. Reset x.*/
+      {
+!       test_x = PageLeft;
+!       test_y = get_next_y(t, test_y, pdeltay);
+      }
+!     aoi = test_fit(t, test_x, test_y, aoimin, pdeltax, pdeltay);
+      if((aoi >= 0) && (aoi < aoimin))
+      {
+        xbest = test_x;
+***************
+*** 169,189 ****
+    *y = ybest;
+  }
+  
+! int get_next_x(FvwmWindow *t, int x, int y)
+  {
+    int xnew;
+    int xtest;
+    FvwmWindow *testw;
+    
+    /* Test window at far right of screen */
+!   xnew = Scr.MyDisplayWidth;
+!   xtest = Scr.MyDisplayWidth - (t->frame_width  + 2 * t->bw);
+    if(xtest > x)
+      xnew = MIN(xnew, xtest);
+    /* Test the values of the right edges of every window */
+    for(testw = Scr.FvwmRoot.next ; testw != NULL ; testw = testw->next)
+    {
+!     if((testw->Desk != Scr.CurrentDesk) || (testw == t))
+        continue;
+      if(testw->flags & ICONIFIED)
+      {
+--- 205,231 ----
+    *y = ybest;
+  }
+  
+! /*  RBW - 08/31/1997  */
+! int get_next_x(FvwmWindow *t, int x, int y, int pdeltax, int pdeltay)
+  {
++ /**/
+    int xnew;
+    int xtest;
+    FvwmWindow *testw;
++   int PageBottom    =  Scr.MyDisplayHeight - pdeltay;
++   int PageRight     =  Scr.MyDisplayWidth - pdeltax;
+    
+    /* Test window at far right of screen */
+! /*  RBW - 08/31/1997  */
+!   xnew = (Scr.MyDisplayWidth - pdeltax);
+!   xtest = (Scr.MyDisplayWidth - pdeltax) - (t->frame_width  + 2 * t->bw);
+! /**/
+    if(xtest > x)
+      xnew = MIN(xnew, xtest);
+    /* Test the values of the right edges of every window */
+    for(testw = Scr.FvwmRoot.next ; testw != NULL ; testw = testw->next)
+    {
+!     if((testw->Desk != t->Desk) || (testw == t))
+        continue;
+      if(testw->flags & ICONIFIED)
+      {
+***************
+*** 211,231 ****
+    }
+    return xnew;
+  }
+! int get_next_y(FvwmWindow *t, int y)
+  {
+    int ynew;
+    int ytest;
+    FvwmWindow *testw;
+    
+    /* Test window at far bottom of screen */
+!   ynew = Scr.MyDisplayHeight;
+!   ytest = Scr.MyDisplayHeight - (t->frame_height + 2 * t->bw);
+    if(ytest > y)
+      ynew = MIN(ynew, ytest);
+    /* Test the values of the bottom edge of every window */
+    for(testw = Scr.FvwmRoot.next ; testw != NULL ; testw = testw->next)
+    {
+!     if((testw->Desk != Scr.CurrentDesk) || (testw == t))
+        continue;
+      if(testw->flags & ICONIFIED)
+      {
+--- 253,278 ----
+    }
+    return xnew;
+  }
+! /*  RBW - 08/31/1997  */
+! int get_next_y(FvwmWindow *t, int y, int pdeltay)
+  {
++ /**/
+    int ynew;
+    int ytest;
+    FvwmWindow *testw;
++   int PageBottom    =  Scr.MyDisplayHeight - pdeltay;
+    
+    /* Test window at far bottom of screen */
+! /*  RBW - 08/31/1997  */
+!   ynew = PageBottom;
+!   ytest = PageBottom - (t->frame_height + 2 * t->bw);
+! /**/
+    if(ytest > y)
+      ynew = MIN(ynew, ytest);
+    /* Test the values of the bottom edge of every window */
+    for(testw = Scr.FvwmRoot.next ; testw != NULL ; testw = testw->next)
+    {
+!     if((testw->Desk != t->Desk) || (testw == t))
+        continue;
+      if(testw->flags & ICONIFIED)
+      {
+***************
+*** 249,256 ****
+    return ynew;
+  }
+  
+! int test_fit(FvwmWindow *t, int x11, int y11, int aoimin)
+  {
+    int height;
+    int width;
+    FvwmWindow *testw;
+--- 296,305 ----
+    return ynew;
+  }
+  
+! /*  RBW - 08/31/1997  */
+! int test_fit(FvwmWindow *t, int x11, int y11, int aoimin, int pdeltax, int pdeltay)
+  {
++ /**/
+    int height;
+    int width;
+    FvwmWindow *testw;
+***************
+*** 260,276 ****
+    int aoi = 0;	    /* area of interference */
+    int anew;
+    int avoidance_factor;
+!   
+    x12 = x11 + t->frame_width  + 2 * t->bw;
+    y12 = y11 + t->frame_height + 2 * t->bw;
+    
+!   if(y12 > Scr.MyDisplayHeight) /* No room in y direction */
+      return -1;
+!   if(x12 > Scr.MyDisplayWidth) /* No room in x direction */
+      return -2;
+    for(testw = Scr.FvwmRoot.next ; testw != NULL ; testw = testw->next)
+    {
+!     if((testw == t) || (testw->Desk != Scr.CurrentDesk))
+         continue;
+      if((testw->flags & ICONIFIED)&&
+         (testw->icon_w))
+--- 309,327 ----
+    int aoi = 0;	    /* area of interference */
+    int anew;
+    int avoidance_factor;
+!   int PageBottom    =  Scr.MyDisplayHeight - pdeltay;
+!   int PageRight     =  Scr.MyDisplayWidth - pdeltax;
+! 
+    x12 = x11 + t->frame_width  + 2 * t->bw;
+    y12 = y11 + t->frame_height + 2 * t->bw;
+    
+!   if (y12 > PageBottom) /* No room in y direction */
+      return -1;
+!   if (x12 > PageRight) /* No room in x direction */
+      return -2;
+    for(testw = Scr.FvwmRoot.next ; testw != NULL ; testw = testw->next)
+    {
+!     if((testw == t) || (testw->Desk != t->Desk))
+         continue;
+      if((testw->flags & ICONIFIED)&&
+         (testw->icon_w))
+***************
+*** 322,332 ****
+   * Returns False in the event of a lost window.
+   *
+   **************************************************************************/
+! Bool PlaceWindow(FvwmWindow *tmp_win, unsigned long tflag,int Desk)
+  {
+    FvwmWindow *t;
+    int xl = -1,yt,DragWidth,DragHeight;
+    int gravx, gravy;			/* gravity signs for positioning */
+    extern Bool PPosOverride;
+    
+    GetGravityOffsets (tmp_win, &gravx, &gravy);
+--- 373,393 ----
+   * Returns False in the event of a lost window.
+   *
+   **************************************************************************/
+! /*  RBW - 08/31/1997  */
+! Bool PlaceWindow(FvwmWindow *tmp_win, unsigned long tflag,int Desk, int PageX, int PageY)
+  {
++ /**/
+    FvwmWindow *t;
+    int xl = -1,yt,DragWidth,DragHeight;
+    int gravx, gravy;			/* gravity signs for positioning */
++ /*  RBW - 08/31/1997  */
++   int px = 0, py = 0, pdeltax = 0, pdeltay = 0, pdesk = 0;
++   int a,b;
++   int PageRight = Scr.MyDisplayWidth, PageBottom = Scr.MyDisplayHeight;
++   int smartlyplaced       =  False;
++   Bool HonorStartsOnPage  =  False;
++   extern Bool Restarting;
++ /**/
+    extern Bool PPosOverride;
+    
+    GetGravityOffsets (tmp_win, &gravx, &gravy);
+***************
+*** 339,349 ****
+     * 4. Transients go on the same desk as their parents.
+     * 5. Window groups stay together (completely untested)
+     */
+    tmp_win->Desk = Scr.CurrentDesk;
+    if (tflag & STICKY_FLAG)
+      tmp_win->Desk = Scr.CurrentDesk;
+!   else if (tflag & STARTSONDESK_FLAG)
+!     tmp_win->Desk = Desk;
+    else
+    {
+      Atom atype;
+--- 400,450 ----
+     * 4. Transients go on the same desk as their parents.
+     * 5. Window groups stay together (completely untested)
+     */
++ /*  RBW - 08/31/1997  */
++ /*
++     Let's get the StartsOnDesk/Page tests out of the way once and for all -
++     the complex tests below were getting way too baroque...
++ */
++   if (tflag & STARTSONDESK_FLAG)
++     {
++       HonorStartsOnPage  =  True;
++       /*
++           Honor the flag unless...
++           it's a restart or recapture, and that option's disallowed...
++       */
++       if (PPosOverride && (Restarting || (Scr.flags & WindowsCaptured)) && !Scr.RecaptureHonorsStartsOnPage)
++         {
++           HonorStartsOnPage  =  False;
++         }
++      /*
++           it's a cold start window capture, and that's disallowed...
++       */
++       if (PPosOverride && (!Restarting && !(Scr.flags & WindowsCaptured)) && !Scr.CaptureHonorsStartsOnPage)
++         {
++           HonorStartsOnPage  =  False;
++         }
++       /*
++           we have a USPosition, and overriding it is disallowed...
++       */
++       if (!PPosOverride && (USPosition && !Scr.ModifyUSP))
++         {
++           HonorStartsOnPage  =  False;
++         }
++       /*
++           it's ActivePlacement and SkipMapping, and that's disallowed.
++       */
++       if (!PPosOverride && ((tmp_win->flags & SHOW_ON_MAP) && 
++           (!(tflag & RANDOM_PLACE_FLAG)) && !Scr.ActivePlacementHonorsStartsOnPage))
++         {
++           HonorStartsOnPage  =  False;
++         }
++     }
++ 
+    tmp_win->Desk = Scr.CurrentDesk;
+    if (tflag & STICKY_FLAG)
+      tmp_win->Desk = Scr.CurrentDesk;
+!   else if ((tflag & STARTSONDESK_FLAG) && Desk && HonorStartsOnPage)
+!     tmp_win->Desk = Desk - 1;    /*  RBW - 08/31/1997    */
+    else
+    {
+      Atom atype;
+***************
+*** 390,397 ****
+    /* I think it would be good to switch to the selected desk
+     * whenever a new window pops up, except during initialization */
+    if((!PPosOverride)&&(!(tmp_win->flags & SHOW_ON_MAP)))
+!     changeDesks(0,tmp_win->Desk);  
+  
+  
+    /* Desk has been selected, now pick a location for the window */
+    /*
+--- 491,533 ----
+    /* I think it would be good to switch to the selected desk
+     * whenever a new window pops up, except during initialization */
+    if((!PPosOverride)&&(!(tmp_win->flags & SHOW_ON_MAP)))
+! /*  RBW - 08/31/1997  --  I dont. */
+!     {
+!       changeDesks(0,tmp_win->Desk);  
+!     }
+  
++ /*  
++     Don't move viewport if SkipMapping, or if recapturing the window,
++     adjust the coordinates later. Otherwise, just switch to the target 
++     page - it's ever so much simpler.
++ */
++     if (!(tflag & STICKY_FLAG) && (tflag & STARTSONDESK_FLAG))
++       {
++         if (PageX && PageY)
++         {
++           px  =  PageX - 1;
++           py  =  PageY -1 ;
++           px  *= Scr.MyDisplayWidth;
++           py  *= Scr.MyDisplayHeight;
++           if ( (!PPosOverride) && (!(tmp_win->flags & SHOW_ON_MAP)) )
++             {
++               MoveViewport(px,py,True);
++             }
++           else
++             {
++               if (HonorStartsOnPage)
++                 {
++                   /*  Save the delta from current page */
++                   pdeltax       =  Scr.Vx - px;
++                   pdeltay       =  Scr.Vy - py;
++                   PageRight    -=  pdeltax;
++                   PageBottom   -=  pdeltay;
++                 }
++             }
++         }
++       }
++ 
++ /**/
+  
+    /* Desk has been selected, now pick a location for the window */
+    /*
+***************
+*** 418,435 ****
+      if(tflag & RANDOM_PLACE_FLAG)
+      {
+        if(tflag & SMART_PLACE_FLAG)
+!         SmartPlacement(tmp_win,tmp_win->frame_width+2*tmp_win->bw,
+!                        tmp_win->frame_height+2*tmp_win->bw, 
+!                        &xl,&yt);
+!       if(xl < 0)
+        {
+          /* plase window in a random location */
+          if ((Scr.randomx += GetDecor(tmp_win,TitleHeight)) > Scr.MyDisplayWidth / 2)
+            Scr.randomx = GetDecor(tmp_win,TitleHeight);
+          if ((Scr.randomy += 2*GetDecor(tmp_win,TitleHeight)) > Scr.MyDisplayHeight / 2)
+            Scr.randomy = 2 * GetDecor(tmp_win,TitleHeight);
+!         tmp_win->attr.x = Scr.randomx - tmp_win->old_bw;
+!         tmp_win->attr.y = Scr.randomy - tmp_win->old_bw;
+        }
+        else
+        {
+--- 554,571 ----
+      if(tflag & RANDOM_PLACE_FLAG)
+      {
+        if(tflag & SMART_PLACE_FLAG)
+!         smartlyplaced = SmartPlacement(tmp_win,tmp_win->frame_width+2*tmp_win->bw,
+!                                        tmp_win->frame_height+2*tmp_win->bw, 
+!                                        &xl,&yt, pdeltax, pdeltay);
+!       if(! smartlyplaced)
+        {
+          /* plase window in a random location */
+          if ((Scr.randomx += GetDecor(tmp_win,TitleHeight)) > Scr.MyDisplayWidth / 2)
+            Scr.randomx = GetDecor(tmp_win,TitleHeight);
+          if ((Scr.randomy += 2*GetDecor(tmp_win,TitleHeight)) > Scr.MyDisplayHeight / 2)
+            Scr.randomy = 2 * GetDecor(tmp_win,TitleHeight);
+!         tmp_win->attr.x = (Scr.randomx - pdeltax) - tmp_win->old_bw;
+!         tmp_win->attr.y = (Scr.randomy - pdeltay) - tmp_win->old_bw;
+        }
+        else
+        {
+***************
+*** 442,457 ****
+        tmp_win->frame_y = tmp_win->attr.y + tmp_win->old_bw - tmp_win->bw;
+        
+        if(tmp_win->frame_x + tmp_win->frame_width +
+!          2*tmp_win->boundary_width> Scr.MyDisplayWidth)
+        {
+!         tmp_win->attr.x = Scr.MyDisplayWidth -tmp_win->attr.width
+            - tmp_win->old_bw +tmp_win->bw - 2*tmp_win->boundary_width;
+          Scr.randomx = 0;
+        }
+        if(tmp_win->frame_y + 2*tmp_win->boundary_width+tmp_win->title_height
+!          + tmp_win->frame_height > Scr.MyDisplayHeight)
+        {
+!         tmp_win->attr.y = Scr.MyDisplayHeight -tmp_win->attr.height
+            - tmp_win->old_bw +tmp_win->bw - tmp_win->title_height -
+            2*tmp_win->boundary_width;;
+          Scr.randomy = 0;
+--- 578,593 ----
+        tmp_win->frame_y = tmp_win->attr.y + tmp_win->old_bw - tmp_win->bw;
+        
+        if(tmp_win->frame_x + tmp_win->frame_width +
+!          2*tmp_win->boundary_width> PageRight)
+        {
+!         tmp_win->attr.x = PageRight -tmp_win->attr.width
+            - tmp_win->old_bw +tmp_win->bw - 2*tmp_win->boundary_width;
+          Scr.randomx = 0;
+        }
+        if(tmp_win->frame_y + 2*tmp_win->boundary_width+tmp_win->title_height
+!          + tmp_win->frame_height > PageBottom)
+        {
+!         tmp_win->attr.y = PageBottom -tmp_win->attr.height
+            - tmp_win->old_bw +tmp_win->bw - tmp_win->title_height -
+            2*tmp_win->boundary_width;;
+          Scr.randomy = 0;
+***************
+*** 462,474 ****
+      }
+      else
+      {	  
+        xl = -1;
+        yt = -1;
+        if(tflag & SMART_PLACE_FLAG)
+!         SmartPlacement(tmp_win,tmp_win->frame_width+2*tmp_win->bw,
+!                        tmp_win->frame_height+2*tmp_win->bw, 
+!                        &xl,&yt);
+!       if(xl < 0)
+        {
+          if(GrabEm(POSITION))
+          {
+--- 598,611 ----
+      }
+      else
+      {	  
++       /*  Must be ActivePlacement  */
+        xl = -1;
+        yt = -1;
+        if(tflag & SMART_PLACE_FLAG)
+!         smartlyplaced = SmartPlacement(tmp_win,tmp_win->frame_width+2*tmp_win->bw,
+!                                        tmp_win->frame_height+2*tmp_win->bw, 
+!                                        &xl,&yt, pdeltax, pdeltay);
+!       if(! smartlyplaced)
+        {
+          if(GrabEm(POSITION))
+          {
+***************
+*** 501,506 ****
+--- 638,650 ----
+            yt = 0;
+          }
+        }
++ /* RBW - 08/31/1997  */
++       if (HonorStartsOnPage)
++       {
++         xl -= pdeltax;
++         yt -= pdeltay;
++       }
++ /**/
+        tmp_win->attr.y = yt - tmp_win->old_bw + tmp_win->bw;
+        tmp_win->attr.x = xl - tmp_win->old_bw + tmp_win->bw;	      
+        tmp_win->xdiff = xl ;
+***************
+*** 512,517 ****
+--- 656,715 ----
+      /* the USPosition was specified, or the window is a transient, 
+       * or it starts iconic so place it automatically */
+      
++ /*  RBW - 08/31/1997  */
++ /*  
++     If SkipMapping, and other legalities are observed, adjust for StartsOnPage.
++ */
++ 
++       if ( ( (tmp_win->flags & SHOW_ON_MAP) && HonorStartsOnPage )  &&
++ 
++            ( !(tmp_win->flags & TRANSIENT) && 
++ 
++              ((tflag & NO_PPOSITION_FLAG) ||
++               !(tmp_win->hints.flags & PPosition)) &&
++ 
++              !((tmp_win->wmhints) &&
++                (tmp_win->wmhints->flags & StateHint) &&
++                (tmp_win->wmhints->initial_state == IconicState)) ) ) 
++         {
++         /*
++             We're placing a SkipMapping window - either capturing one that's
++             previously been mapped, or overriding USPosition - so what we
++             have here is its actual untouched coordinates. In case it was
++             a StartsOnPage window, we have to 1) convert the existing x,y 
++             offsets relative to the requested page (i.e., as though there 
++             were only one page, no virtual desktop), then 2) readjust 
++             relative to the current page.
++             ...I t'ink.
++         */
++ 
++ 
++           if (tmp_win->attr.x < 0)
++             {
++               tmp_win->attr.x  =  ((Scr.MyDisplayWidth + tmp_win->attr.x) % Scr.MyDisplayWidth);
++             }
++           else
++             {
++             tmp_win->attr.x  =  tmp_win->attr.x % Scr.MyDisplayWidth;
++             }
++ /*
++     Noticed a quirk here. With some apps (e.g., xman), we find the 
++     placement has moved 1 pixel away from where we originally put it when we come 
++     through here. Why is this happening?
++ */
++           if (tmp_win->attr.y < 0)
++             {
++               tmp_win->attr.y  =  ((Scr.MyDisplayHeight + tmp_win->attr.y) % Scr.MyDisplayHeight);
++             }
++           else
++             {
++               tmp_win->attr.y  =  tmp_win->attr.y % Scr.MyDisplayHeight;
++             }
++           tmp_win->attr.x  -=  pdeltax;
++           tmp_win->attr.y  -=  pdeltay;
++         }
++ /**/
++ 
+      tmp_win->xdiff = tmp_win->attr.x; 
+      tmp_win->ydiff =  tmp_win->attr.y;
+      /* put it where asked, mod title bar */
+diff -c -r fvwm-2.0.46/fvwm/screen.h fvwm-2.0.46-patched/fvwm/screen.h
+*** fvwm-2.0.46/fvwm/screen.h	Mon Aug  4 16:55:30 1997
+--- fvwm-2.0.46-patched/fvwm/screen.h	Mon Sep 22 22:00:01 1997
+***************
+*** 323,328 ****
+--- 323,332 ----
+    int ClickToFocusPassesClick;
+    int ClickToFocusRaises;
+    int MouseFocusClickRaises;
++   Bool ModifyUSP;                          /* - RBW - 08/31/1997  */
++   Bool CaptureHonorsStartsOnPage;          /* - RBW - 08/31/1997  */
++   Bool RecaptureHonorsStartsOnPage;        /* - RBW - 08/31/1997  */
++   Bool ActivePlacementHonorsStartsOnPage;  /* - RBW - 08/31/1997  */
+  
+  } ScreenInfo;
+  
+diff -c -r fvwm-2.0.46/fvwm/style.c fvwm-2.0.46-patched/fvwm/style.c
+*** fvwm-2.0.46/fvwm/style.c	Sun Aug 31 09:23:39 1997
+--- fvwm-2.0.46-patched/fvwm/style.c	Mon Sep 22 22:00:04 1997
+***************
+*** 53,58 ****
+--- 53,62 ----
+    int num,i;
+  
+    int len,desknumber = 0,bw=0, nobw = 0;
++ /*  RBW - 08/31/1997  */
++   int pagex = 0, pagey = 0;    
++   int tmpno1 = -1, tmpno2 = -1, tmpno3 = -1, spargs = 0;
++ /**/
+    unsigned long off_flags = 0;
+    unsigned long on_flags = 0;
+    
+***************
+*** 551,563 ****
+          {
+            restofline +=12;
+            off_flags |= STARTSONDESK_FLAG;
+!           sscanf(restofline,"%d",&desknumber);
+            while(isspace(*restofline))restofline++;
+            while((!isspace(*restofline))&&(*restofline!= 0)&&
+                  (*restofline != ',')&&(*restofline != '\n'))
+              restofline++;
+            while(isspace(*restofline))restofline++;
+          }
+          else if(mystrncasecmp(restofline,"STARTSANYWHERE",14)==0)
+          {
+            restofline +=14;
+--- 555,629 ----
+          {
+            restofline +=12;
+            off_flags |= STARTSONDESK_FLAG;
+! 
+! /*  RBW -08/31/1997  */
+!           spargs = sscanf(restofline,"%d",&tmpno1);
+!           if (spargs == 1)
+!             {
+!               desknumber = tmpno1 + 1;
+!             }
+! /**/
+            while(isspace(*restofline))restofline++;
+            while((!isspace(*restofline))&&(*restofline!= 0)&&
+                  (*restofline != ',')&&(*restofline != '\n'))
+              restofline++;
+            while(isspace(*restofline))restofline++;
+          }
++ /*  RBW -08/31/1997  */
++ /*
++   StartsOnPage is like StartsOnDesk-Plus
++ */
++        else if(mystrncasecmp(restofline,"STARTSONPAGE",12)==0)
++         {
++           restofline +=12;
++           off_flags |= STARTSONDESK_FLAG;
++           spargs = sscanf(restofline,"%d %d %d", &tmpno1, &tmpno2, &tmpno3);
++ 
++           if (spargs == 1 || spargs == 3)
++             {
++             /*  We have a desk no., with or without page.  */
++               desknumber = tmpno1 + 1;        /*  Desk is now actual + 1  */
++               /*  Bump past desk no.    */
++               while(isspace(*restofline))restofline++;
++               while((!isspace(*restofline))&&(*restofline!= 0)&&
++                     (*restofline != ',')&&(*restofline != '\n'))
++                 restofline++;
++               while(isspace(*restofline))restofline++;
++             }
++ 
++           if (spargs == 2 || spargs == 3)
++             {
++               if (spargs == 3)
++                 {
++                   pagex = tmpno2 + 1;
++                   pagey = tmpno3 + 1;
++                 }
++               else
++                 {
++                   pagex       =  tmpno1 + 1;
++                   pagey       =  tmpno2 + 1;
++                 }
++               while(isspace(*restofline))restofline++;
++               while((!isspace(*restofline))&&(*restofline!= 0)&&
++                     (*restofline != ',')&&(*restofline != '\n'))
++                 restofline++;
++               while(isspace(*restofline))restofline++;
++               while(isspace(*restofline))restofline++;
++               while((!isspace(*restofline))&&(*restofline!= 0)&&
++                    (*restofline != ',')&&(*restofline != '\n'))
++                 restofline++;
++               while(isspace(*restofline))restofline++;
++ 
++             }
++           if (spargs < 1 || spargs > 3)
++             {
++               off_flags &= ~STARTSONDESK_FLAG;
++               fvwm_msg(ERR,"ProcessNewStyle",
++                        "bad StartsOnPage args: %s", restofline);
++             }
++ 
++          }
++ /**/
+          else if(mystrncasecmp(restofline,"STARTSANYWHERE",14)==0)
+          {
+            restofline +=14;
+***************
+*** 643,648 ****
+--- 709,718 ----
+  			decor	    = nptr->Decor;
+  #endif
+  			desknumber    = nptr->Desk;
++ /*  RBW - 08/31/1997  */
++ 			pagex         = nptr->PageX;
++ 			pagey         = nptr->PageY;
++ /**/
+  			bw            = nptr->border_width;
+  			nobw          = nptr->resize_width;
+  			forecolor     = nptr->ForeColor;
+***************
+*** 668,674 ****
+  			if(nptr->Decor) decor = nptr->Decor;
+  #endif
+  			if(nptr->off_flags & STARTSONDESK_FLAG)
+! 			    desknumber = nptr->Desk;
+  			if(nptr->off_flags & BW_FLAG)
+  			    bw = nptr->border_width;
+  			if(nptr->off_flags & NOBW_FLAG)
+--- 738,750 ----
+  			if(nptr->Decor) decor = nptr->Decor;
+  #endif
+  			if(nptr->off_flags & STARTSONDESK_FLAG)
+! /*  RBW - 08/31/1997  */
+!                               {
+! 			        desknumber = nptr->Desk;
+! 			        pagex      = nptr->PageX;
+! 			        pagey      = nptr->PageY;
+! 			      }
+! /**/
+  			if(nptr->off_flags & BW_FLAG)
+  			    bw = nptr->border_width;
+  			if(nptr->off_flags & NOBW_FLAG)
+***************
+*** 755,761 ****
+  #ifdef USEDECOR
+  	    decor,
+  #endif
+!             off_flags,on_flags,desknumber,bw,nobw,
+  	    forecolor,backcolor,off_buttons,on_buttons,IconBox,BoxFillMethod);
+  }
+  
+--- 831,838 ----
+  #ifdef USEDECOR
+  	    decor,
+  #endif
+! /*  RBW - 08/31/1997  */
+!             off_flags,on_flags,desknumber, pagex, pagey, bw,nobw,
+  	    forecolor,backcolor,off_buttons,on_buttons,IconBox,BoxFillMethod);
+  }
+  
+***************
+*** 771,776 ****
+--- 848,857 ----
+                 unsigned long off_flags, 
+  	       unsigned long on_flags,
+                 int desk,
++ /*  RBW - 08/31/1997  */
++                int pagex,
++                int pagey,
++ /**/
+                 int bw,
+                 int nobw,
+  	       char *forecolor,
+***************
+*** 820,825 ****
+--- 901,910 ----
+    nptr->Decor = decor;
+  #endif
+    nptr->Desk = desk;
++ /*  RBW - 08/31/1997  */
++   nptr->PageX = pagex;
++   nptr->PageY = pagey;
++ /**/
+    nptr->border_width = bw;
+    nptr->resize_width = nobw;
+    nptr->ForeColor = forecolor;
